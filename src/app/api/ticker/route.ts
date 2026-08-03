@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 
 // Near-real-time: Binance 24h ticker for spot pairs; CoinGecko USD for stables.
@@ -7,6 +8,8 @@ export const revalidate = 0;
 const SYMBOL_TO_ID = new Map(
   COINS.filter((c) => c.binance).map((c) => [c.binance!.toUpperCase(), c.id]),
 );
+
+const SPOT_IDS = new Set(COINS.filter((c) => c.binance).map((c) => c.id));
 
 type BinanceTicker = {
   symbol: string;
@@ -43,10 +46,9 @@ export async function GET() {
   const ticks: Record<string, Tick> = {};
 
   try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/ticker/24hr?symbols=" +
-        encodeURIComponent(JSON.stringify(symbols)),
-      { headers: { accept: "application/json" }, cache: "no-store" },
+    const res = await binanceGet(
+      "/api/v3/ticker/24hr?symbols=" + encodeURIComponent(JSON.stringify(symbols)),
+      { cache: "no-store" },
     );
     if (res.ok) {
       const data: BinanceTicker[] = await res.json();
@@ -82,7 +84,9 @@ export async function GET() {
     /* keep whatever we have */
   }
 
-  if (Object.keys(ticks).length) {
+  const spotCovered = [...SPOT_IDS].filter((id) => ticks[id]).length;
+  // Only short-circuit when Binance filled most spot ticks (not just stables).
+  if (spotCovered >= Math.max(3, Math.floor(SPOT_IDS.size * 0.5))) {
     return NextResponse.json({ ticks, live: true });
   }
 
@@ -94,11 +98,12 @@ export async function GET() {
     if (!res.ok) throw new Error(`CoinGecko ${res.status}`);
     const data: CGMarket[] = await res.json();
     for (const d of data) {
+      if (ticks[d.id]) continue; // keep Binance / stable overlays when present
       const tick = fromCg(d);
       if (tick) ticks[d.id] = tick;
     }
     return NextResponse.json({ ticks, live: Object.keys(ticks).length > 0 });
   } catch {
-    return NextResponse.json({ ticks: {}, live: false });
+    return NextResponse.json({ ticks, live: Object.keys(ticks).length > 0 });
   }
 }

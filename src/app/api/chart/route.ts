@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 
 export const revalidate = 120;
@@ -60,13 +61,10 @@ export async function GET(request: Request) {
   if (useBinance) {
     try {
       const cfg = BINANCE_RANGE[days] ?? BINANCE_RANGE["7"];
-      const url =
-        `https://api.binance.com/api/v3/klines?symbol=${coin.binance}` +
-        `&interval=${cfg.interval}&limit=${cfg.limit}`;
-      const res = await fetch(url, {
-        headers: { accept: "application/json" },
-        next: { revalidate: 120 },
-      });
+      const res = await binanceGet(
+        `/api/v3/klines?symbol=${coin.binance}&interval=${cfg.interval}&limit=${cfg.limit}`,
+        { next: { revalidate: 120 } },
+      );
       if (res.ok) {
         const rows: unknown[][] = await res.json();
         const series = dedupe(

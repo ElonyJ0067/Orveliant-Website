@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BINANCE_WS_BASES } from "./binance";
 import { COINS } from "./coins";
 
 export type LiveTick = {
@@ -28,6 +29,7 @@ const STREAMS = COINS.filter((c) => c.binance)
 let socket: WebSocket | null = null;
 let latest: LiveMap = {};
 let retry = 0;
+let wsBaseIndex = 0;
 let refCount = 0;
 let lastWsMsgAt = 0;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -41,10 +43,12 @@ function connect() {
   if (typeof window === "undefined") return;
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
 
+  const base = BINANCE_WS_BASES[wsBaseIndex % BINANCE_WS_BASES.length];
   let ws: WebSocket;
   try {
-    ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${STREAMS}`);
+    ws = new WebSocket(`${base}/stream?streams=${STREAMS}`);
   } catch {
+    wsBaseIndex += 1;
     scheduleReconnect();
     return;
   }
@@ -81,7 +85,11 @@ function connect() {
   };
 
   ws.onclose = () => {
-    if (refCount > 0) scheduleReconnect();
+    if (refCount > 0) {
+      // Rotate host after repeated failures so geo-blocked endpoints don't stick.
+      if (retry >= 1) wsBaseIndex += 1;
+      scheduleReconnect();
+    }
   };
 
   ws.onerror = () => {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 
 export const dynamic = "force-dynamic";
@@ -24,13 +25,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const url =
-      `https://api.binance.com/api/v3/aggTrades?symbol=${coin.binance}` +
-      `&limit=800`;
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
-      cache: "no-store",
-    });
+    const res = await binanceGet(
+      `/api/v3/aggTrades?symbol=${coin.binance}&limit=800`,
+      { cache: "no-store" },
+    );
     if (!res.ok) throw new Error(`Binance ${res.status}`);
     const trades: AggTrade[] = await res.json();
 

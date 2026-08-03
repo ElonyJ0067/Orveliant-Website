@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BINANCE_WS_BASES } from "./binance";
 import { COINS } from "./coins";
 import type { DeskInterval } from "./deskChart";
 
@@ -38,16 +39,17 @@ export function useLiveKline(
 
     let ws: WebSocket | null = null;
     let retry = 0;
+    let baseIndex = 0;
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const connect = () => {
       if (disposed) return;
+      const base = BINANCE_WS_BASES[baseIndex % BINANCE_WS_BASES.length];
       try {
-        ws = new WebSocket(
-          `wss://stream.binance.com:9443/ws/${symbol}@kline_${interval}`,
-        );
+        ws = new WebSocket(`${base}/ws/${symbol}@kline_${interval}`);
       } catch {
+        baseIndex += 1;
         schedule();
         return;
       }
@@ -88,7 +90,10 @@ export function useLiveKline(
       };
 
       ws.onclose = () => {
-        if (!disposed) schedule();
+        if (!disposed) {
+          if (retry >= 1) baseIndex += 1;
+          schedule();
+        }
       };
       ws.onerror = () => {
         ws?.close();

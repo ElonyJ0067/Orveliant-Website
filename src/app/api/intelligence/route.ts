@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 import { analyzeBars } from "@/lib/intelligence/analyze";
 import type { Bar, IntelligencePack } from "@/lib/intelligence/types";
@@ -40,13 +41,10 @@ export async function GET(request: Request) {
 
   try {
     // ~41 days of 1h bars — enough for prior UTC week + developing session.
-    const url =
-      `https://api.binance.com/api/v3/klines?symbol=${coin.binance}` +
-      `&interval=1h&limit=1000`;
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
-      cache: "no-store",
-    });
+    const res = await binanceGet(
+      `/api/v3/klines?symbol=${coin.binance}&interval=1h&limit=1000`,
+      { cache: "no-store" },
+    );
     if (!res.ok) throw new Error(`Binance ${res.status}`);
     const rows: unknown[][] = await res.json();
     const bars = parseKlines(rows);

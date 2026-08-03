@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 import {
   HISTORY_PAGE,
@@ -63,17 +64,16 @@ export async function GET(request: Request) {
   const endTime = endTimeParam ? Number(endTimeParam) : NaN;
 
   try {
-    let url =
-      `https://api.binance.com/api/v3/klines?symbol=${coin.binance}` +
+    let path =
+      `/api/v3/klines?symbol=${coin.binance}` +
       `&interval=${BINANCE_INTERVAL[intervalParam]}&limit=${limit}`;
     if (Number.isFinite(endTime) && endTime > 0) {
-      url += `&endTime=${Math.floor(endTime)}`;
+      path += `&endTime=${Math.floor(endTime)}`;
     }
 
     // Paginated history must be fresh; initial window can reuse a short cache.
     const paginating = Number.isFinite(endTime) && endTime > 0;
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
+    const res = await binanceGet(path, {
       ...(paginating
         ? { cache: "no-store" as const }
         : { next: { revalidate: 30 } }),

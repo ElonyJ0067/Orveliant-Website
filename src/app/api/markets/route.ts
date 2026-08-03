@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { binanceGet } from "@/lib/binance";
 import { COINS, FALLBACK_MARKET, type Coin, type MarketRow } from "@/lib/coins";
 
 export const revalidate = 60;
@@ -44,13 +45,10 @@ async function loadBinanceTickers(): Promise<Map<string, BinanceTicker>> {
   const symbols = COINS.filter((c) => c.binance && !STABLES.has(c.id)).map((c) => c.binance!);
   if (!symbols.length) return new Map();
   try {
-    const url =
-      "https://api.binance.com/api/v3/ticker/24hr?symbols=" +
-      encodeURIComponent(JSON.stringify(symbols));
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
-      next: { revalidate: 60 },
-    });
+    const res = await binanceGet(
+      "/api/v3/ticker/24hr?symbols=" + encodeURIComponent(JSON.stringify(symbols)),
+      { next: { revalidate: 60 } },
+    );
     if (!res.ok) return new Map();
     const rows: BinanceTicker[] = await res.json();
     return new Map(rows.map((r) => [r.symbol, r]));
@@ -65,13 +63,10 @@ async function loadBinanceSparks(): Promise<Map<string, number[]>> {
     COINS.map(async (c) => {
       if (!c.binance || STABLES.has(c.id)) return;
       try {
-        const url =
-          `https://api.binance.com/api/v3/klines?symbol=${c.binance}` +
-          `&interval=1h&limit=168`;
-        const res = await fetch(url, {
-          headers: { accept: "application/json" },
-          next: { revalidate: 60 },
-        });
+        const res = await binanceGet(
+          `/api/v3/klines?symbol=${c.binance}&interval=1h&limit=168`,
+          { next: { revalidate: 60 } },
+        );
         if (!res.ok) return;
         const rows: unknown[][] = await res.json();
         const closes = rows.map((r) => Number(r[4])).filter((n) => Number.isFinite(n));
