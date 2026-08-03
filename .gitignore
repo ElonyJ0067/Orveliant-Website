@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local logs
+.next-dev-out.log
+.next-dev-err.log
+
+# visitor / device store
+.data/
+
+# editor
+.cursor/
