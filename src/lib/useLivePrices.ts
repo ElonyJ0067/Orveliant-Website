@@ -133,10 +133,12 @@ function stopPolling() {
   }
 }
 
-export function useLivePrices(): LiveMap {
+export function useLivePrices(enabled = true): LiveMap {
   const [prices, setPrices] = useState<LiveMap>(latest);
 
   useEffect(() => {
+    if (!enabled) return;
+
     refCount += 1;
     listeners.add(setPrices);
     setPrices(latest);
@@ -154,7 +156,7 @@ export function useLivePrices(): LiveMap {
         }
       }
     };
-  }, []);
+  }, [enabled]);
 
   return prices;
 }

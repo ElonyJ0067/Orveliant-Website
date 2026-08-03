@@ -20,10 +20,11 @@ import { COINS, fmtPrice } from "@/lib/coins";
 import {
   DESK_INTERVALS,
   DESK_RANGES,
-  HISTORY_PAGE,
   INITIAL_LIMIT,
+  HISTORY_PAGE,
   barsCoverSeconds,
   defaultRangeForInterval,
+  initialLimitFor,
   intervalSeconds,
   mergeBars,
   type DeskInterval,
@@ -243,29 +244,37 @@ export function DeskChart({
     const data = barsRef.current;
     if (!chart || !data.length) return;
 
-    const last = data[data.length - 1].t;
-    const first = data[0].t;
     const cfg = DESK_RANGES.find((r) => r.id === rangeId);
-    const pad = intervalSeconds(interval) * 4;
+    const lastIdx = data.length - 1;
+    const rightPad = 8;
 
+    // Logical ranges never invent empty time on the left (unlike setVisibleRange
+    // when zoomed out past available history — the production scroll bug).
     if (!cfg) {
-      chart.timeScale().fitContent();
+      try {
+        chart.timeScale().setVisibleLogicalRange({
+          from: 0,
+          to: lastIdx + rightPad,
+        } as LogicalRange);
+      } catch {
+        chart.timeScale().fitContent();
+      }
       viewReadyRef.current = true;
       return;
     }
 
-    const from = Math.max(first, last - cfg.seconds);
+    const barsNeeded = Math.ceil(cfg.seconds / intervalSeconds(interval));
+    const fromIdx = Math.max(0, lastIdx - barsNeeded);
     try {
-      chart.timeScale().setVisibleRange({
-        from: from as Time,
-        to: (last + pad) as Time,
-      });
+      chart.timeScale().setVisibleLogicalRange({
+        from: fromIdx,
+        to: lastIdx + rightPad,
+      } as LogicalRange);
     } catch {
       chart.timeScale().fitContent();
     }
     viewReadyRef.current = true;
 
-    // If selected range needs more history than we have, keep pulling left.
     if (force || !barsCoverSeconds(data, cfg.seconds)) {
       /* load-more subscription will fill; nudge if already at left edge */
     }
@@ -345,7 +354,9 @@ export function DeskChart({
 
     (async () => {
       try {
-        const { bars: next, hasMore: more } = await fetchDeskBars(coinId, interval);
+        const { bars: next, hasMore: more } = await fetchDeskBars(coinId, interval, {
+          limit: initialLimitFor(interval, nextDefault),
+        });
         if (cancelled) return;
         if (!next.length) throw new Error("No chart history returned");
         setBars(next);
@@ -371,7 +382,7 @@ export function DeskChart({
     if (chartLoading || loadingMore || !bars.length || !hasMore) return;
     const cfg = DESK_RANGES.find((r) => r.id === range);
     if (!cfg || barsCoverSeconds(bars, cfg.seconds)) return;
-    if (autoFillPagesRef.current >= 24) return;
+    if (autoFillPagesRef.current >= 8) return;
     autoFillPagesRef.current += 1;
     void loadOlder();
   }, [bars, range, hasMore, chartLoading, loadingMore, loadOlder]);
@@ -409,7 +420,7 @@ export function DeskChart({
         borderVisible: false,
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 10,
+        rightOffset: 8,
       },
       crosshair: {
         mode: CrosshairMode.Normal,
@@ -426,8 +437,19 @@ export function DeskChart({
           style: 2,
         },
       },
-      handleScroll: { vertTouchDrag: false },
-      width: w0,
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: true, price: true },
+      },
+      autoSize: true,
       height: h0,
     });
 
@@ -522,8 +544,9 @@ export function DeskChart({
     const applyLayout = () => {
       if (!containerRef.current) return;
       const w = containerRef.current.clientWidth;
-      const h = chartHeightForWidth(w);
-      chart.applyOptions({ width: w, height: h });
+      const h = containerRef.current.clientHeight || chartHeightForWidth(w);
+      // autoSize owns width — only sync height + pane splits (avoids scroll thrash).
+      chart.applyOptions({ height: h });
 
       const panes = chart.panes();
       const extras = (showPressure ? 1 : 0) + (showPulse ? 1 : 0);
@@ -540,8 +563,31 @@ export function DeskChart({
     };
     applyLayout();
 
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastW = containerRef.current.clientWidth;
+    let lastH = containerRef.current.clientHeight;
     const ro = new ResizeObserver(() => {
-      applyLayout();
+      if (!containerRef.current) return;
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      // Ignore tiny thrash from page scroll / subpixel reflow.
+      if (Math.abs(w - lastW) < 2 && Math.abs(h - lastH) < 2) return;
+      lastW = w;
+      lastH = h;
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const logical = chart.timeScale().getVisibleLogicalRange();
+        applyLayout();
+        if (logical) {
+          requestAnimationFrame(() => {
+            try {
+              chart.timeScale().setVisibleLogicalRange(logical);
+            } catch {
+              /* ignore */
+            }
+          });
+        }
+      }, 50);
     });
     ro.observe(containerRef.current);
 
@@ -575,7 +621,29 @@ export function DeskChart({
     chart.subscribeCrosshairMove(onMove);
 
     const onLogical = (logical: LogicalRange | null) => {
-      if (!logical || loadingMoreRef.current || !hasMoreRef.current) return;
+      if (!logical || loadingMoreRef.current) return;
+
+      const n = barsRef.current.length;
+      if (n > 0) {
+        const minFrom = -0.5;
+        const maxTo = n - 1 + 12;
+        // Clamp zoom-out so the plot never shows a blank left half.
+        if (logical.from < minFrom || logical.to > maxTo + 40) {
+          const span = Math.max(20, logical.to - logical.from);
+          const to = Math.min(maxTo, Math.max(span, logical.to));
+          const from = Math.max(minFrom, to - span);
+          if (from !== logical.from || to !== logical.to) {
+            try {
+              chart.timeScale().setVisibleLogicalRange({ from, to } as LogicalRange);
+            } catch {
+              /* ignore */
+            }
+            return;
+          }
+        }
+      }
+
+      if (!hasMoreRef.current) return;
       if (logical.from < 12) {
         void loadOlderRef.current();
       }
@@ -607,6 +675,7 @@ export function DeskChart({
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
       chart.unsubscribeCrosshairMove(onMove);
+      if (resizeTimer) clearTimeout(resizeTimer);
       ro.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -999,7 +1068,7 @@ export function DeskChart({
         )}
         <div
           ref={containerRef}
-          className="h-[480px] w-full overflow-hidden rounded-xl border border-line/80 bg-[#07080a] sm:h-[560px] lg:h-[600px]"
+          className="h-[360px] w-full min-w-0 overflow-hidden rounded-xl border border-line/80 bg-[#07080a] sm:h-[520px] lg:h-[600px]"
         />
       </div>
     </div>

@@ -8,7 +8,7 @@ type Series = { time: number; value: number }[];
 
 const STABLES = new Set(["tether", "usd-coin"]);
 
-/** Map UI ranges → Binance kline interval + limit. */
+/** Map UI ranges → Binance kline interval + page size. */
 const BINANCE_RANGE: Record<string, { interval: string; limit: number }> = {
   "1h": { interval: "1m", limit: 60 },
   "1": { interval: "5m", limit: 288 },
@@ -53,6 +53,9 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id") ?? "bitcoin";
   const days = searchParams.get("days") ?? "7";
+  const endTimeParam = searchParams.get("endTime");
+  const endTime = endTimeParam ? Number(endTimeParam) : NaN;
+  const paginating = Number.isFinite(endTime) && endTime > 0;
 
   const coin = COINS.find((c) => c.id === id) ?? COINS[0];
   // Stables: always true USD (CoinGecko). USDCUSDT is not USDC/USD.
@@ -61,10 +64,18 @@ export async function GET(request: Request) {
   if (useBinance) {
     try {
       const cfg = BINANCE_RANGE[days] ?? BINANCE_RANGE["7"];
-      const res = await binanceGet(
-        `/api/v3/klines?symbol=${coin.binance}&interval=${cfg.interval}&limit=${cfg.limit}`,
-        { next: { revalidate: 120 } },
-      );
+      let path =
+        `/api/v3/klines?symbol=${coin.binance}` +
+        `&interval=${cfg.interval}&limit=${cfg.limit}`;
+      if (paginating) {
+        path += `&endTime=${Math.floor(endTime)}`;
+      }
+
+      const res = await binanceGet(path, {
+        ...(paginating
+          ? { cache: "no-store" as const }
+          : { next: { revalidate: 120 } }),
+      });
       if (res.ok) {
         const rows: unknown[][] = await res.json();
         const series = dedupe(
@@ -74,12 +85,16 @@ export async function GET(request: Request) {
           })),
         );
         if (series.length) {
+          const hasMore = series.length >= cfg.limit;
           return NextResponse.json(
-            { series, live: true, source: "binance" },
+            { series, live: true, source: "binance", hasMore },
             {
-              headers: {
-                "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
-              },
+              headers: paginating
+                ? { "Cache-Control": "no-store" }
+                : {
+                    "Cache-Control":
+                      "public, s-maxage=120, stale-while-revalidate=300",
+                  },
             },
           );
         }
@@ -87,6 +102,14 @@ export async function GET(request: Request) {
     } catch {
       /* fall through */
     }
+  }
+
+  // CoinGecko has no endTime window — older-page requests stop here.
+  if (paginating) {
+    return NextResponse.json(
+      { series: [], live: false, source: "none", hasMore: false },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   try {
@@ -107,7 +130,7 @@ export async function GET(request: Request) {
       if (days === "1h") series = sliceLastHours(series, 1);
       if (series.length) {
         return NextResponse.json(
-          { series, live: true, source: "coingecko" },
+          { series, live: true, source: "coingecko", hasMore: false },
           {
             headers: {
               "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
@@ -126,9 +149,9 @@ export async function GET(request: Request) {
     series: synth(coin.id, synthDays),
     live: false,
     source: "synthetic",
+    hasMore: false,
   });
 }
-
 function synth(id: string, days: number): Series {
   const now = Math.floor(Date.now() / 1000);
   const points = days <= 1 / 24 ? 60 : days <= 1 ? 96 : days <= 7 ? 168 : 180;
@@ -171,3 +194,4 @@ function synth(id: string, days: number): Series {
     value: Number(value.toFixed(value < 2 ? 6 : 2)),
   }));
 }
+

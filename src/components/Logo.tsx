@@ -55,7 +55,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       }}
     >
       <Image
-        src="/logo.png"
+        src="/logo.webp"
         alt=""
         width={36}
         height={36}

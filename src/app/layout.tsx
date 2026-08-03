@@ -3,14 +3,15 @@ import { Sora, Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { ChatBot } from "@/components/ChatBot";
+import { ChatBotLazy } from "@/components/ChatBotLazy";
 import { VisitTracker } from "@/components/VisitTracker";
 import { SITE } from "@/lib/site";
 
 const sora = Sora({
   variable: "--font-sora",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  // Hero + headings only — drop light weights from the critical path.
+  weight: ["600", "700", "800"],
   display: "swap",
   preload: true,
 });
@@ -19,7 +20,8 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
-  preload: true,
+  // Body text can swap in; don't block first paint on Inter.
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -85,6 +87,17 @@ export default function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning className={`${sora.variable} ${inter.variable} h-full`}>
+      <head>
+        {/* LCP: hero poster before video bytes */}
+        <link
+          rel="preload"
+          as="image"
+          href="/hero-poster.webp"
+          type="image/webp"
+          fetchPriority="high"
+        />
+        <link rel="preload" as="image" href="/logo.webp" type="image/webp" />
+      </head>
       <body suppressHydrationWarning className="min-h-full flex flex-col">
         <script
           type="application/ld+json"
@@ -98,7 +111,7 @@ export default function RootLayout({
           {children}
         </main>
         <Footer />
-        <ChatBot />
+        <ChatBotLazy />
         <VisitTracker />
       </body>
     </html>

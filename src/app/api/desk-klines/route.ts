@@ -10,7 +10,7 @@ import {
 import type { Bar } from "@/lib/intelligence/types";
 
 /** Short CDN/edge cache for recent-history requests (no endTime pagination). */
-export const revalidate = 30;
+export const revalidate = 60;
 
 const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "15m": "15m",
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     const res = await binanceGet(path, {
       ...(paginating
         ? { cache: "no-store" as const }
-        : { next: { revalidate: 30 } }),
+        : { next: { revalidate: 60 } }),
     });
     if (!res.ok) throw new Error(`Binance ${res.status}`);
 
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
       {
         headers: paginating
           ? { "Cache-Control": "no-store" }
-          : { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" },
+          : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
       },
     );
   } catch (err) {

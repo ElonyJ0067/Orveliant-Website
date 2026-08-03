@@ -19,19 +19,27 @@ export const DESK_RANGES = [
 export type DeskRange = (typeof DESK_RANGES)[number]["id"];
 
 /**
- * First paint targets — sized to cover each TF’s default range with a small buffer.
- * Older history loads lazily when the user pans or picks a longer range.
- *   15m → 1D ≈ 96 bars · 1h → 5D ≈ 120 · 4h → 1M ≈ 180 · 1d → 3M ≈ 90
+ * First paint targets — sized to cover each TF’s default range in ONE request
+ * (plus buffer) so production doesn’t wait on chained history pages.
+ *   15m → 1D ≈ 96+48 · 1h → 5D ≈ 120+48 · 4h → 1M ≈ 180+48 · 1d → 3M ≈ 90+48
  */
 export const INITIAL_LIMIT: Record<DeskInterval, number> = {
-  "15m": 120,
-  "1h": 150,
-  "4h": 200,
-  "1d": 120,
+  "15m": 160,
+  "1h": 200,
+  "4h": 260,
+  "1d": 160,
 };
 
 export const HISTORY_PAGE = 500;
 export const MAX_BARS = 5_000;
+
+/** Exact first-fetch size for a TF + visible range (capped at Binance 1000). */
+export function initialLimitFor(interval: DeskInterval, range?: DeskRange): number {
+  const rangeId = range ?? defaultRangeForInterval(interval);
+  const span = DESK_RANGES.find((r) => r.id === rangeId)?.seconds ?? 5 * 86_400;
+  const sec = intervalSeconds(interval);
+  return Math.min(1000, Math.max(INITIAL_LIMIT[interval], Math.ceil(span / sec) + 64));
+}
 
 export function defaultRangeForInterval(interval: DeskInterval): DeskRange {
   if (interval === "15m") return "1D";

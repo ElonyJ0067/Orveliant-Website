@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AreaSeries,
   ColorType,
@@ -8,6 +8,7 @@ import {
   createChart,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type Time,
 } from "lightweight-charts";
 import { fmtPrice } from "@/lib/coins";
@@ -31,6 +32,51 @@ const DOWN = { line: "#e5544b", top: "rgba(229,84,75,0.28)", bottom: "rgba(229,8
 
 type Point = { time: Time; value: number };
 type Tip = { x: number; y: number; time: number; value: number } | null;
+
+function pointTimeSec(t: Time): number {
+  return typeof t === "number" ? t : Math.floor(new Date(String(t)).getTime() / 1000);
+}
+
+function mergePoints(older: Point[], newer: Point[]): Point[] {
+  const out: Point[] = [];
+  let last = -Infinity;
+  const all = [...older, ...newer].sort(
+    (a, b) => pointTimeSec(a.time) - pointTimeSec(b.time),
+  );
+  for (const p of all) {
+    const t = pointTimeSec(p.time);
+    if (!Number.isFinite(t) || !Number.isFinite(p.value)) continue;
+    if (t <= last) continue;
+    out.push({ time: t as Time, value: p.value });
+    last = t;
+  }
+  return out;
+}
+
+function statsFrom(data: Point[]) {
+  if (data.length < 2) {
+    return {
+      periodChange: 0,
+      chartLast: data[0]?.value ?? 0,
+      high: data[0]?.value ?? 0,
+      low: data[0]?.value ?? 0,
+    };
+  }
+  const first = data[0].value;
+  const last = data[data.length - 1].value;
+  let hi = -Infinity;
+  let lo = Infinity;
+  for (const p of data) {
+    if (p.value > hi) hi = p.value;
+    if (p.value < lo) lo = p.value;
+  }
+  return {
+    periodChange: first > 0 ? ((last - first) / first) * 100 : 0,
+    chartLast: last,
+    high: hi,
+    low: lo,
+  };
+}
 
 function formatAxisTime(t: number, days: string): string {
   const d = new Date(t * 1000);
@@ -67,15 +113,24 @@ export function PriceChart({
   const lastTimeRef = useRef<Time | null>(null);
   const dataRef = useRef<Point[]>([]);
   const daysRef = useRef("7");
+  const hasMoreRef = useRef(true);
+  const loadingMoreRef = useRef(false);
+  const loadOlderRef = useRef<() => Promise<void>>(async () => {});
+  /** Bumps on coin/range change so stale older-history fetches never apply. */
+  const fetchGenRef = useRef(0);
+  /** Block left-edge load-more until the new range has painted “now”. */
+  const viewReadyRef = useRef(false);
 
   const [days, setDays] = useState("7");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [live, setLive] = useState(false);
   const [periodChange, setPeriodChange] = useState(0);
   const [hoverPrice, setHoverPrice] = useState<number | null>(null);
   const [tip, setTip] = useState<Tip>(null);
   const [high, setHigh] = useState(0);
   const [low, setLow] = useState(0);
+  const [chartLast, setChartLast] = useState(0);
 
   daysRef.current = days;
 
@@ -83,6 +138,94 @@ export function PriceChart({
   const tick = ticks[id];
   const up = periodChange >= 0;
   const palette = up ? UP : DOWN;
+
+  const snapToLatest = useCallback((data: Point[]) => {
+    const chart = chartRef.current;
+    if (!chart || !data.length) return;
+    const lastIdx = data.length - 1;
+    try {
+      chart.timeScale().setVisibleLogicalRange({
+        from: 0,
+        to: lastIdx + 4,
+      } as LogicalRange);
+    } catch {
+      chart.timeScale().fitContent();
+    }
+  }, []);
+
+  const loadOlder = useCallback(async () => {
+    if (loadingMoreRef.current || !hasMoreRef.current || !viewReadyRef.current) return;
+    if (STABLES.has(id)) return;
+    const current = dataRef.current;
+    if (!current.length) return;
+
+    const chart = chartRef.current;
+    const logical = chart?.timeScale().getVisibleLogicalRange() ?? null;
+    const gen = fetchGenRef.current;
+    const daysAtStart = daysRef.current;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    try {
+      const oldestSec = pointTimeSec(current[0].time);
+      const res = await fetch(
+        `/api/chart?id=${encodeURIComponent(id)}` +
+          `&days=${encodeURIComponent(daysAtStart)}` +
+          `&endTime=${oldestSec * 1000 - 1}`,
+      );
+      // Range/coin changed while we were fetching — drop this page.
+      if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return;
+
+      const json = await res.json();
+      const older: Point[] = (json.series ?? []).map(
+        (d: { time: number; value: number }) => ({
+          time: d.time as Time,
+          value: d.value,
+        }),
+      );
+
+      if (!older.length) {
+        hasMoreRef.current = false;
+        return;
+      }
+
+      const beforeLen = current.length;
+      const merged = mergePoints(older, current);
+      const added = merged.length - beforeLen;
+      if (added <= 0) {
+        hasMoreRef.current = false;
+        return;
+      }
+
+      dataRef.current = merged;
+      hasMoreRef.current = Boolean(json.hasMore);
+      seriesRef.current?.setData(merged);
+
+      const s = statsFrom(merged);
+      setHigh(s.high);
+      setLow(s.low);
+      setChartLast(s.chartLast);
+
+      if (chart && logical && added > 0) {
+        requestAnimationFrame(() => {
+          if (gen !== fetchGenRef.current) return;
+          chart.timeScale().setVisibleLogicalRange({
+            from: logical.from + added,
+            to: logical.to + added,
+          } as LogicalRange);
+        });
+      }
+    } catch {
+      /* keep series; user can pan again */
+    } finally {
+      if (gen === fetchGenRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+    }
+  }, [id]);
+
+  loadOlderRef.current = loadOlder;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -124,9 +267,18 @@ export function PriceChart({
           labelBackgroundColor: "#1b1f27",
         },
       },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
       autoSize: true,
-      handleScale: { axisPressedMouseMove: true, mouseWheel: false, pinch: true },
-      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true },
     });
 
     const series = chart.addSeries(AreaSeries, {
@@ -171,10 +323,20 @@ export function PriceChart({
       setTip({ x, y, time, value });
     });
 
+    const onLogical = (logical: LogicalRange | null) => {
+      if (!logical || loadingMoreRef.current || !viewReadyRef.current) return;
+      if (!hasMoreRef.current) return;
+      if (logical.from < 12) {
+        void loadOlderRef.current();
+      }
+    };
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
+
     chartRef.current = chart;
     seriesRef.current = series;
 
     return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -194,14 +356,22 @@ export function PriceChart({
 
   useEffect(() => {
     let active = true;
+    const gen = ++fetchGenRef.current;
+    viewReadyRef.current = false;
+    loadingMoreRef.current = false;
+    setLoadingMore(false);
     setLoading(true);
     setTip(null);
     setHoverPrice(null);
+    hasMoreRef.current = true;
+    dataRef.current = [];
+    // Clear immediately so the old scrolled view can’t linger on a new range.
+    seriesRef.current?.setData([]);
 
     fetch(`/api/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}`)
       .then((r) => r.json())
       .then((json) => {
-        if (!active || !seriesRef.current) return;
+        if (!active || gen !== fetchGenRef.current || !seriesRef.current) return;
         const data: Point[] = (json.series ?? []).map(
           (d: { time: number; value: number }) => ({
             time: d.time as Time,
@@ -209,39 +379,33 @@ export function PriceChart({
           }),
         );
         dataRef.current = data;
+        hasMoreRef.current = Boolean(json.hasMore);
         seriesRef.current.setData(data);
         lastTimeRef.current = data.length ? data[data.length - 1].time : null;
 
-        if (data.length >= 2) {
-          const first = data[0].value;
-          const last = data[data.length - 1].value;
-          setPeriodChange(first > 0 ? ((last - first) / first) * 100 : 0);
-          let hi = -Infinity;
-          let lo = Infinity;
-          for (const p of data) {
-            if (p.value > hi) hi = p.value;
-            if (p.value < lo) lo = p.value;
-          }
-          setHigh(hi);
-          setLow(lo);
-        } else {
-          setPeriodChange(0);
-          setHigh(0);
-          setLow(0);
-        }
+        const s = statsFrom(data);
+        setPeriodChange(s.periodChange);
+        setChartLast(s.chartLast);
+        setHigh(s.high);
+        setLow(s.low);
 
-        chartRef.current?.timeScale().fitContent();
+        // Always land on the latest window for this range chip.
+        requestAnimationFrame(() => {
+          if (gen !== fetchGenRef.current) return;
+          snapToLatest(data);
+          viewReadyRef.current = true;
+        });
         setLive(Boolean(json.live));
         setLoading(false);
       })
       .catch(() => {
-        if (active) setLoading(false);
+        if (active && gen === fetchGenRef.current) setLoading(false);
       });
 
     return () => {
       active = false;
     };
-  }, [id, days]);
+  }, [id, days, snapToLatest]);
 
   // Live tip — skip stables (chart is true USD; Binance USDCUSDT tip would distort it).
   useEffect(() => {
@@ -278,6 +442,7 @@ export function PriceChart({
             />
             <span className="text-xs text-ink-mute">
               {streaming ? "Live" : live ? "Market data" : "Sample"}
+              {loadingMore ? " · older…" : ""}
             </span>
           </div>
 
@@ -327,22 +492,43 @@ export function PriceChart({
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Stat label={`${rangeLabel} High`} value={high ? fmtPrice(high) : "—"} />
         <Stat label={`${rangeLabel} Low`} value={low ? fmtPrice(low) : "—"} />
-        <Stat label="Last" value={tick ? fmtPrice(tick.price) : "—"} />
+        <Stat
+          label="Last"
+          value={
+            tick
+              ? fmtPrice(tick.price)
+              : chartLast
+                ? fmtPrice(chartLast)
+                : "—"
+          }
+        />
         <Stat
           label="24h Change"
           value={
             tick
               ? `${tick.change24h >= 0 ? "+" : ""}${tick.change24h.toFixed(2)}%`
-              : "—"
+              : days === "1" && periodChange
+                ? `${periodChange >= 0 ? "+" : ""}${periodChange.toFixed(2)}%`
+                : "—"
           }
-          tone={tick ? (tick.change24h >= 0 ? "up" : "down") : undefined}
+          tone={
+            tick
+              ? tick.change24h >= 0
+                ? "up"
+                : "down"
+              : days === "1"
+                ? periodChange >= 0
+                  ? "up"
+                  : "down"
+                : undefined
+          }
         />
       </div>
 
       <div className="relative">
         <div
           ref={containerRef}
-          className="h-[320px] w-full touch-pan-y sm:h-[400px]"
+          className="h-[320px] w-full touch-none overscroll-contain sm:h-[400px]"
           onMouseLeave={() => {
             setTip(null);
             setHoverPrice(null);

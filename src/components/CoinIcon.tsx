@@ -11,11 +11,11 @@ export function CoinIcon({
 }) {
   return (
     <Image
-      src={`/coins/${symbol.toLowerCase()}.png`}
+      src={`/coins/${symbol.toLowerCase()}.webp`}
       alt={symbol}
       width={size}
       height={size}
-      unoptimized
+      sizes={`${size}px`}
       className={`rounded-full object-cover ${className}`}
     />
   );

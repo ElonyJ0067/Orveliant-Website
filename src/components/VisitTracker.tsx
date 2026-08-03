@@ -60,9 +60,25 @@ export function VisitTracker() {
       }
     };
 
-    void run();
+    // Defer visit ping so first paint (hero/logo) owns the network.
+    let idleId: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(() => {
+        void run();
+      }, { timeout: 4000 });
+    } else {
+      timer = setTimeout(() => {
+        void run();
+      }, 2500);
+    }
+
     return () => {
       cancelled = true;
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timer) clearTimeout(timer);
     };
   }, []);
 

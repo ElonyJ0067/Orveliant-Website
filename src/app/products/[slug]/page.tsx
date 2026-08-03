@@ -68,6 +68,9 @@ export default async function ProductPage({
               src={product.icon}
               alt={product.name}
               fill
+              quality={95}
+              sizes="(max-width: 768px) 256px, 320px"
+              priority
               className="relative object-contain animate-float drop-shadow-[0_20px_40px_rgba(201,162,39,0.4)]"
             />
           </div>
@@ -105,7 +108,15 @@ export default async function ProductPage({
         <div className="grid gap-6 sm:grid-cols-2">
           {others.map((p) => (
             <Link key={p.slug} href={`/products/${p.slug}`} className="card card-hover flex items-center gap-5 p-6">
-              <Image src={p.icon} alt={p.name} width={64} height={64} className="h-16 w-16 object-contain" />
+              <Image
+                src={p.icon}
+                alt={p.name}
+                width={128}
+                height={128}
+                quality={95}
+                sizes="64px"
+                className="h-16 w-16 object-contain"
+              />
               <div>
                 <div className="font-display font-semibold">{p.name}</div>
                 <div className="text-sm text-ink-dim">{p.tagline}</div>

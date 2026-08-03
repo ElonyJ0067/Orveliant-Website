@@ -4,31 +4,59 @@ import { useEffect, useState } from "react";
 import { FALLBACK_MARKET, fmtPrice, type MarketRow } from "@/lib/coins";
 import { useLivePrices } from "@/lib/useLivePrices";
 
+/**
+ * Homepage ticker: paint fallback prices instantly, then hydrate from REST.
+ * Live WebSocket attaches after a short delay so it doesn't compete with hero LCP.
+ */
 export function MarketTicker() {
   const [rows, setRows] = useState<MarketRow[]>(FALLBACK_MARKET);
-  const liveTicks = useLivePrices();
+  const [liveReady, setLiveReady] = useState(false);
+  const liveTicks = useLivePrices(liveReady);
 
   useEffect(() => {
     let active = true;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+
     const load = async () => {
       try {
-        const res = await fetch("/api/markets", { cache: "no-store" });
+        const res = await fetch("/api/markets");
         const json = await res.json();
         if (active && json.rows) setRows(json.rows);
       } catch {
         /* keep fallback */
       }
     };
-    load();
-    const t = setInterval(load, 60_000);
+
+    let idleId: number | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const start = () => {
+      void load();
+      intervalId = setInterval(load, 60_000);
+    };
+
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(() => start(), { timeout: 2500 });
+    } else {
+      timer = setTimeout(start, 1200);
+    }
+
+    const liveTimer = setTimeout(() => {
+      if (active) setLiveReady(true);
+    }, 2800);
+
     return () => {
       active = false;
-      clearInterval(t);
+      if (idleId != null && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timer) clearTimeout(timer);
+      clearTimeout(liveTimer);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
   const merged = rows.map((r) => {
-    const tick = liveTicks[r.id];
+    const tick = liveReady ? liveTicks[r.id] : undefined;
     return tick ? { ...r, price: tick.price, change24h: tick.change24h } : r;
   });
   const items = [...merged, ...merged];
@@ -43,7 +71,6 @@ export function MarketTicker() {
       <div className="ticker-track flex w-max animate-ticker gap-8 py-3 motion-reduce:w-full motion-reduce:animate-none motion-reduce:flex-wrap motion-reduce:justify-center">
         {items.map((r, i) => {
           const up = r.change24h >= 0;
-          // Duplicate strip is for seamless scroll; hide the clone from assistive tech.
           const clone = i >= merged.length;
           return (
             <div

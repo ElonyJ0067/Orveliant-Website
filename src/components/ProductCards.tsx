@@ -20,8 +20,10 @@ export function ProductCards() {
               <Image
                 src={p.icon}
                 alt={p.name}
-                width={96}
-                height={96}
+                width={192}
+                height={192}
+                quality={95}
+                sizes="96px"
                 className="relative h-24 w-24 object-contain drop-shadow-[0_8px_24px_rgba(201,162,39,0.35)] transition-transform duration-500 group-hover:scale-105 group-hover:-translate-y-1"
               />
             </div>
