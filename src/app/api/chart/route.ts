@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { binanceGet } from "@/lib/binance";
 import { COINS } from "@/lib/coins";
 
-export const revalidate = 120;
+export const revalidate = 60;
 
 type Series = { time: number; value: number }[];
 
@@ -30,6 +30,12 @@ const CG_DAYS: Record<string, string> = {
   max: "max",
 };
 
+/** Historical klines (fixed endTime) never change — CDN-friendly. */
+const HIST_CACHE =
+  "public, s-maxage=3600, stale-while-revalidate=86400";
+const FRESH_CACHE =
+  "public, s-maxage=60, stale-while-revalidate=300";
+
 function dedupe(series: Series): Series {
   const out: Series = [];
   let last = -1;
@@ -49,6 +55,19 @@ function sliceLastHours(series: Series, hours: number): Series {
   return series.filter((p) => p.time >= cutoff);
 }
 
+function retryableEmpty() {
+  return NextResponse.json(
+    {
+      series: [] as Series,
+      live: false,
+      source: "none",
+      hasMore: true,
+      retryable: true,
+    },
+    { status: 503, headers: { "Cache-Control": "no-store" } },
+  );
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id") ?? "bitcoin";
@@ -64,17 +83,20 @@ export async function GET(request: Request) {
   if (useBinance) {
     try {
       const cfg = BINANCE_RANGE[days] ?? BINANCE_RANGE["7"];
+      // Larger pages when scrolling back → fewer Netlify → Binance round-trips.
+      const limit = paginating
+        ? Math.min(1000, Math.max(cfg.limit, 500))
+        : cfg.limit;
       let path =
         `/api/v3/klines?symbol=${coin.binance}` +
-        `&interval=${cfg.interval}&limit=${cfg.limit}`;
+        `&interval=${cfg.interval}&limit=${limit}`;
       if (paginating) {
         path += `&endTime=${Math.floor(endTime)}`;
       }
 
+      // Historical windows are immutable — cache them in Next/CDN.
       const res = await binanceGet(path, {
-        ...(paginating
-          ? { cache: "no-store" as const }
-          : { next: { revalidate: 120 } }),
+        next: { revalidate: paginating ? 3600 : 60 },
       });
       if (res.ok) {
         const rows: unknown[][] = await res.json();
@@ -85,31 +107,42 @@ export async function GET(request: Request) {
           })),
         );
         if (series.length) {
-          const hasMore = series.length >= cfg.limit;
+          const hasMore = series.length >= limit;
           return NextResponse.json(
-            { series, live: true, source: "binance", hasMore },
+            { series, live: true, source: "binance", hasMore, retryable: false },
             {
-              headers: paginating
-                ? { "Cache-Control": "no-store" }
-                : {
-                    "Cache-Control":
-                      "public, s-maxage=120, stale-while-revalidate=300",
-                  },
+              headers: {
+                "Cache-Control": paginating ? HIST_CACHE : FRESH_CACHE,
+              },
             },
           );
         }
+        // Empty but OK → truly at the start of exchange history.
+        if (paginating) {
+          return NextResponse.json(
+            {
+              series: [] as Series,
+              live: true,
+              source: "binance",
+              hasMore: false,
+              retryable: false,
+            },
+            { headers: { "Cache-Control": HIST_CACHE } },
+          );
+        }
+      } else if (paginating) {
+        // Transient upstream — do NOT tell the client history ended.
+        return retryableEmpty();
       }
     } catch {
-      /* fall through */
+      if (paginating) return retryableEmpty();
+      /* fall through for initial window */
     }
   }
 
-  // CoinGecko has no endTime window — older-page requests stop here.
+  // Pagination is Binance-only. Never claim "end of history" on a miss.
   if (paginating) {
-    return NextResponse.json(
-      { series: [], live: false, source: "none", hasMore: false },
-      { headers: { "Cache-Control": "no-store" } },
-    );
+    return retryableEmpty();
   }
 
   try {
@@ -119,7 +152,7 @@ export async function GET(request: Request) {
       `?vs_currency=usd&days=${cgDays}`;
     const res = await fetch(url, {
       headers: { accept: "application/json" },
-      next: { revalidate: 300 },
+      next: { revalidate: 120 },
     });
     if (res.ok) {
       const data = await res.json();
@@ -130,12 +163,14 @@ export async function GET(request: Request) {
       if (days === "1h") series = sliceLastHours(series, 1);
       if (series.length) {
         return NextResponse.json(
-          { series, live: true, source: "coingecko", hasMore: false },
           {
-            headers: {
-              "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
-            },
+            series,
+            live: true,
+            source: "coingecko",
+            hasMore: false,
+            retryable: false,
           },
+          { headers: { "Cache-Control": FRESH_CACHE } },
         );
       }
     }
@@ -150,8 +185,10 @@ export async function GET(request: Request) {
     live: false,
     source: "synthetic",
     hasMore: false,
+    retryable: false,
   });
 }
+
 function synth(id: string, days: number): Series {
   const now = Math.floor(Date.now() / 1000);
   const points = days <= 1 / 24 ? 60 : days <= 1 ? 96 : days <= 7 ? 168 : 180;
@@ -194,4 +231,3 @@ function synth(id: string, days: number): Series {
     value: Number(value.toFixed(value < 2 ? 6 : 2)),
   }));
 }
-

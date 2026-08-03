@@ -19,7 +19,6 @@ CONTACT
 - Phone: +1 351 251 0247
 - Location: Greater Houston, US (operating region · United States)
 - LinkedIn: https://www.linkedin.com/company/orveliant
-- GitHub: https://github.com/orveliant
 - We typically respond within one business day.
 
 PRODUCTS

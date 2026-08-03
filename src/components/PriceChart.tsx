@@ -12,6 +12,7 @@ import {
   type Time,
 } from "lightweight-charts";
 import { fmtPrice } from "@/lib/coins";
+import { fetchChartJson, warmChartUrl } from "@/lib/chartFetch";
 import { useLivePrices } from "@/lib/useLivePrices";
 import { LivePrice } from "./LivePrice";
 
@@ -168,15 +169,23 @@ export function PriceChart({
     setLoadingMore(true);
     try {
       const oldestSec = pointTimeSec(current[0].time);
-      const res = await fetch(
+      const url =
         `/api/chart?id=${encodeURIComponent(id)}` +
-          `&days=${encodeURIComponent(daysAtStart)}` +
-          `&endTime=${oldestSec * 1000 - 1}`,
-      );
+        `&days=${encodeURIComponent(daysAtStart)}` +
+        `&endTime=${oldestSec * 1000 - 1}`;
+
+      const { ok, json } = await fetchChartJson<{
+        series?: { time: number; value: number }[];
+        hasMore?: boolean;
+        retryable?: boolean;
+      }>(url, { retries: 2 });
+
       // Range/coin changed while we were fetching — drop this page.
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return;
 
-      const json = await res.json();
+      // Transient Netlify/Binance miss — keep hasMore so the user can retry.
+      if (!ok || json.retryable) return;
+
       const older: Point[] = (json.series ?? []).map(
         (d: { time: number; value: number }) => ({
           time: d.time as Time,
@@ -215,8 +224,18 @@ export function PriceChart({
           } as LogicalRange);
         });
       }
+
+      // Prefetch the next older page so the following scroll feels instant.
+      if (hasMoreRef.current && merged.length) {
+        const nextOldest = pointTimeSec(merged[0].time);
+        warmChartUrl(
+          `/api/chart?id=${encodeURIComponent(id)}` +
+            `&days=${encodeURIComponent(daysAtStart)}` +
+            `&endTime=${nextOldest * 1000 - 1}`,
+        );
+      }
     } catch {
-      /* keep series; user can pan again */
+      /* keep series + hasMore; user can pan again */
     } finally {
       if (gen === fetchGenRef.current) {
         loadingMoreRef.current = false;
@@ -368,9 +387,13 @@ export function PriceChart({
     // Clear immediately so the old scrolled view can’t linger on a new range.
     seriesRef.current?.setData([]);
 
-    fetch(`/api/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}`)
-      .then((r) => r.json())
-      .then((json) => {
+    const url = `/api/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}`;
+    fetchChartJson<{
+      series?: { time: number; value: number }[];
+      hasMore?: boolean;
+      live?: boolean;
+    }>(url, { retries: 1 })
+      .then(({ json }) => {
         if (!active || gen !== fetchGenRef.current || !seriesRef.current) return;
         const data: Point[] = (json.series ?? []).map(
           (d: { time: number; value: number }) => ({
@@ -397,6 +420,22 @@ export function PriceChart({
         });
         setLive(Boolean(json.live));
         setLoading(false);
+
+        // Warm first older page after idle so scroll-back is ready on Netlify.
+        if (json.hasMore && data.length && !STABLES.has(id)) {
+          const oldestSec = pointTimeSec(data[0].time);
+          const warm = () =>
+            warmChartUrl(
+              `/api/chart?id=${encodeURIComponent(id)}` +
+                `&days=${encodeURIComponent(days)}` +
+                `&endTime=${oldestSec * 1000 - 1}`,
+            );
+          if (typeof requestIdleCallback === "function") {
+            requestIdleCallback(warm, { timeout: 1200 });
+          } else {
+            window.setTimeout(warm, 400);
+          }
+        }
       })
       .catch(() => {
         if (active && gen === fetchGenRef.current) setLoading(false);

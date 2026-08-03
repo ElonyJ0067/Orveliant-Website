@@ -17,6 +17,7 @@ import {
 import type { Bar, IntelligencePack } from "@/lib/intelligence/types";
 import type { LiveKline } from "@/lib/useLiveKline";
 import { COINS, fmtPrice } from "@/lib/coins";
+import { fetchChartJson, warmChartUrl } from "@/lib/chartFetch";
 import {
   DESK_INTERVALS,
   DESK_RANGES,
@@ -140,7 +141,7 @@ async function fetchDeskBars(
   coinId: string,
   interval: DeskInterval,
   opts?: { endTimeMs?: number; limit?: number },
-): Promise<{ bars: Bar[]; hasMore: boolean }> {
+): Promise<{ bars: Bar[]; hasMore: boolean; retryable: boolean }> {
   const params = new URLSearchParams({
     id: coinId,
     interval,
@@ -148,12 +149,26 @@ async function fetchDeskBars(
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
 
-  const res = await fetch(`/api/desk-klines?${params}`);
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || "Failed to load chart");
+  const url = `/api/desk-klines?${params}`;
+  const { ok, json } = await fetchChartJson<{
+    bars?: Bar[];
+    hasMore?: boolean;
+    retryable?: boolean;
+    error?: string;
+  }>(url, { retries: opts?.endTimeMs != null ? 2 : 1 });
+
+  if (!ok || json.retryable) {
+    const err = new Error(json.error || "Failed to load chart") as Error & {
+      retryable?: boolean;
+    };
+    err.retryable = true;
+    throw err;
+  }
+
   return {
     bars: (json.bars ?? []) as Bar[],
     hasMore: Boolean(json.hasMore),
+    retryable: false,
   };
 }
 
@@ -282,10 +297,10 @@ export function DeskChart({
 
   applyViewRef.current = applyVisibleRange;
 
-  const loadOlder = useCallback(async () => {
-    if (loadingMoreRef.current || !hasMoreRef.current) return;
+  const loadOlder = useCallback(async (): Promise<boolean> => {
+    if (loadingMoreRef.current || !hasMoreRef.current) return false;
     const current = barsRef.current;
-    if (!current.length) return;
+    if (!current.length) return false;
 
     const chart = chartRef.current;
     const logical = chart?.timeScale().getVisibleLogicalRange() ?? null;
@@ -300,7 +315,8 @@ export function DeskChart({
       });
       if (!older.length) {
         setHasMore(false);
-        return;
+        hasMoreRef.current = false;
+        return false;
       }
 
       const beforeLen = current.length;
@@ -309,11 +325,14 @@ export function DeskChart({
       // All returned bars already known → end of exchange history for this window.
       if (added <= 0) {
         setHasMore(false);
-        return;
+        hasMoreRef.current = false;
+        return false;
       }
 
       setBars(merged);
       setHasMore(more);
+      hasMoreRef.current = more;
+      barsRef.current = merged;
 
       // Keep the same candles under the cursor after prepending history.
       if (chart && logical && added > 0) {
@@ -324,8 +343,18 @@ export function DeskChart({
           } as LogicalRange);
         });
       }
+
+      if (more && merged.length) {
+        warmChartUrl(
+          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+            `&interval=${interval}&limit=${HISTORY_PAGE}` +
+            `&endTime=${merged[0].t * 1000 - 1}`,
+        );
+      }
+      return true;
     } catch {
-      /* keep existing series; user can pan again */
+      /* keep existing series + hasMore; user can pan again */
+      return false;
     } finally {
       loadingMoreRef.current = false;
       setLoadingMore(false);
@@ -335,12 +364,14 @@ export function DeskChart({
   const loadOlderRef = useRef(loadOlder);
   loadOlderRef.current = loadOlder;
   const autoFillPagesRef = useRef(0);
+  const autoFillFailsRef = useRef(0);
 
   // Initial / interval / coin history load.
   useEffect(() => {
     let cancelled = false;
     viewReadyRef.current = false;
     autoFillPagesRef.current = 0;
+    autoFillFailsRef.current = 0;
     setChartLoading(true);
     setChartError("");
     setBars([]);
@@ -363,6 +394,21 @@ export function DeskChart({
         setHasMore(more);
         barsRef.current = next;
         hasMoreRef.current = more;
+
+        // Prefetch first older page so scroll-back is ready after first paint.
+        if (more && next.length) {
+          const warm = () =>
+            warmChartUrl(
+              `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+                `&interval=${interval}&limit=${HISTORY_PAGE}` +
+                `&endTime=${next[0].t * 1000 - 1}`,
+            );
+          if (typeof requestIdleCallback === "function") {
+            requestIdleCallback(warm, { timeout: 1200 });
+          } else {
+            window.setTimeout(warm, 400);
+          }
+        }
       } catch (err) {
         if (!cancelled) {
           setChartError(err instanceof Error ? err.message : "Failed to load chart");
@@ -383,8 +429,21 @@ export function DeskChart({
     const cfg = DESK_RANGES.find((r) => r.id === range);
     if (!cfg || barsCoverSeconds(bars, cfg.seconds)) return;
     if (autoFillPagesRef.current >= 8) return;
-    autoFillPagesRef.current += 1;
-    void loadOlder();
+    if (autoFillFailsRef.current >= 3) return;
+    let cancelled = false;
+    (async () => {
+      const ok = await loadOlder();
+      if (cancelled) return;
+      if (ok) {
+        autoFillPagesRef.current += 1;
+        autoFillFailsRef.current = 0;
+      } else {
+        autoFillFailsRef.current += 1;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [bars, range, hasMore, chartLoading, loadingMore, loadOlder]);
 
   // Recreate chart when pane layout changes so heights stay locked & correct.

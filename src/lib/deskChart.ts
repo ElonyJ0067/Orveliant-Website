@@ -30,8 +30,9 @@ export const INITIAL_LIMIT: Record<DeskInterval, number> = {
   "1d": 160,
 };
 
-export const HISTORY_PAGE = 500;
-export const MAX_BARS = 5_000;
+/** Binance max kline page — fewer Netlify round-trips when scrolling back. */
+export const HISTORY_PAGE = 1000;
+export const MAX_BARS = 8_000;
 
 /** Exact first-fetch size for a TF + visible range (capped at Binance 1000). */
 export function initialLimitFor(interval: DeskInterval, range?: DeskRange): number {

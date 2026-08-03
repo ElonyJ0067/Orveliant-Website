@@ -158,35 +158,6 @@ export function IntelligenceDesk() {
           ? "4h"
           : "1D";
 
-  const graphColRef = useRef<HTMLDivElement>(null);
-  const [railHeight, setRailHeight] = useState<number | null>(null);
-
-  // Keep chain rail height locked to the graph column (works at any browser zoom).
-  useEffect(() => {
-    const el = graphColRef.current;
-    if (!el) {
-      setRailHeight(null);
-      return;
-    }
-    const sync = () => {
-      const h = Math.round(el.getBoundingClientRect().height);
-      if (h > 0) setRailHeight((prev) => (prev === h ? prev : h));
-    };
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(el);
-    window.addEventListener("resize", sync);
-    // Chart panes settle after mount / font / zoom — catch late size.
-    const t1 = window.setTimeout(sync, 120);
-    const t2 = window.setTimeout(sync, 400);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", sync);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-    };
-  }, [loading, pack, tool, id]);
-
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -273,38 +244,38 @@ export function IntelligenceDesk() {
           )}
           <div className="space-y-6">
             {/* Chart mounts immediately — does not wait on intelligence analysis. */}
-            <div className="grid items-start gap-4 lg:grid-cols-[92px_minmax(0,1fr)]">
-              {/* Mobile: horizontal chain strip */}
-              <div className="lg:hidden -mx-1 overflow-x-auto px-1 pb-1">
-                <div className="flex min-w-max gap-2">
-                  {DESK_COINS.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setId(c.id)}
-                      className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
-                        id === c.id
-                          ? "border-gold/50 bg-gold/10 text-gold-light"
-                          : "border-line text-ink-dim hover:text-ink"
-                      }`}
-                    >
-                      <CoinIcon symbol={c.symbol} size={16} />
-                      {c.symbol}
-                    </button>
-                  ))}
-                </div>
+            {/* Mobile: horizontal chain strip */}
+            <div className="lg:hidden -mx-1 overflow-x-auto px-1 pb-1">
+              <div className="flex min-w-max gap-2">
+                {DESK_COINS.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setId(c.id)}
+                    className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
+                      id === c.id
+                        ? "border-gold/50 bg-gold/10 text-gold-light"
+                        : "border-line text-ink-dim hover:text-ink"
+                    }`}
+                  >
+                    <CoinIcon symbol={c.symbol} size={16} />
+                    {c.symbol}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {/* Desktop: left rail — same height as graph; scroll if coins need room */}
-              <aside className="hidden lg:block">
-                <div
-                  className="flex flex-col overflow-hidden rounded-xl border border-line bg-canvas/40"
-                  style={railHeight ? { height: railHeight } : undefined}
-                >
-                  <div className="shrink-0 border-b border-line px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
+            {/*
+              Desktop: CSS stretch matches rail to chart height (no JS measure).
+              JS height-lock was clipping the last coins on refresh.
+            */}
+            <div className="grid items-stretch gap-3 lg:grid-cols-[92px_minmax(0,1fr)]">
+              <aside className="hidden min-h-0 lg:block">
+                <div className="flex h-full min-h-0 flex-col rounded-xl border border-line bg-canvas/40">
+                  <div className="shrink-0 border-b border-line px-1 py-1.5 text-center text-[9px] font-semibold uppercase tracking-[0.12em] text-ink-mute">
                     Chains
                   </div>
-                  <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain p-1.5 [scrollbar-width:thin]">
+                  <div className="grid min-h-0 flex-1 grid-rows-12 gap-px overflow-hidden p-0.5">
                     {DESK_COINS.map((c) => {
                       const live = liveTicks[c.id]?.price;
                       return (
@@ -313,21 +284,23 @@ export function IntelligenceDesk() {
                           type="button"
                           onClick={() => setId(c.id)}
                           title={live != null ? `${c.name} · ${fmtPrice(live)}` : c.name}
-                          className={`flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 transition-colors ${
+                          className={`grid place-items-center content-center gap-px rounded-md border px-0 transition-colors ${
                             id === c.id
                               ? "border-gold/50 bg-gold/10 text-gold-light"
                               : "border-transparent text-ink-dim hover:border-line hover:bg-surface/60 hover:text-ink"
                           }`}
                         >
-                          <CoinIcon symbol={c.symbol} size={18} />
-                          <span className="leading-none text-[11px] font-semibold tracking-wide">
+                          <CoinIcon
+                            symbol={c.symbol}
+                            size={18}
+                            className="mx-auto block"
+                          />
+                          <span className="w-full text-center text-[11px] font-semibold leading-none tracking-normal">
                             {c.symbol}
                           </span>
-                          {live != null && (
-                            <span className="max-w-full truncate px-0.5 leading-none text-[9px] tabular-nums text-ink-mute">
-                              {fmtPrice(live)}
-                            </span>
-                          )}
+                          <span className="w-full truncate px-px text-center text-[9px] leading-none tabular-nums text-ink-mute">
+                            {live != null ? fmtPrice(live) : "—"}
+                          </span>
                         </button>
                       );
                     })}
@@ -335,7 +308,7 @@ export function IntelligenceDesk() {
                 </div>
               </aside>
 
-              <div ref={graphColRef} className="min-w-0">
+              <div className="min-w-0">
                 <DeskChart
                   coinId={id}
                   interval={chartInterval}

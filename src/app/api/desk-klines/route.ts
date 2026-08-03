@@ -10,7 +10,7 @@ import {
 import type { Bar } from "@/lib/intelligence/types";
 
 /** Short CDN/edge cache for recent-history requests (no endTime pagination). */
-export const revalidate = 60;
+export const revalidate = 30;
 
 const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "15m": "15m",
@@ -18,6 +18,11 @@ const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "4h": "4h",
   "1d": "1d",
 };
+
+const HIST_CACHE =
+  "public, s-maxage=3600, stale-while-revalidate=86400";
+const FRESH_CACHE =
+  "public, s-maxage=30, stale-while-revalidate=120";
 
 function parseKlines(rows: unknown[][]): Bar[] {
   return rows
@@ -60,25 +65,36 @@ export async function GET(request: Request) {
   }
 
   const limitRaw = limitParam ? Number(limitParam) : INITIAL_LIMIT[intervalParam];
-  const limit = Math.min(1000, Math.max(50, Number.isFinite(limitRaw) ? limitRaw : HISTORY_PAGE));
+  const limit = Math.min(
+    1000,
+    Math.max(50, Number.isFinite(limitRaw) ? limitRaw : HISTORY_PAGE),
+  );
   const endTime = endTimeParam ? Number(endTimeParam) : NaN;
+  const paginating = Number.isFinite(endTime) && endTime > 0;
 
   try {
     let path =
       `/api/v3/klines?symbol=${coin.binance}` +
       `&interval=${BINANCE_INTERVAL[intervalParam]}&limit=${limit}`;
-    if (Number.isFinite(endTime) && endTime > 0) {
+    if (paginating) {
       path += `&endTime=${Math.floor(endTime)}`;
     }
 
-    // Paginated history must be fresh; initial window can reuse a short cache.
-    const paginating = Number.isFinite(endTime) && endTime > 0;
+    // Historical endTime windows are immutable — cache aggressively.
     const res = await binanceGet(path, {
-      ...(paginating
-        ? { cache: "no-store" as const }
-        : { next: { revalidate: 60 } }),
+      next: { revalidate: paginating ? 3600 : 30 },
     });
-    if (!res.ok) throw new Error(`Binance ${res.status}`);
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          error: "Unable to load desk chart history right now.",
+          bars: [],
+          hasMore: true,
+          retryable: true,
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
 
     const rows: unknown[][] = await res.json();
     const bars = parseKlines(rows);
@@ -93,18 +109,24 @@ export async function GET(request: Request) {
         bars,
         hasMore,
         live: true,
+        retryable: false,
       },
       {
-        headers: paginating
-          ? { "Cache-Control": "no-store" }
-          : { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" },
+        headers: {
+          "Cache-Control": paginating ? HIST_CACHE : FRESH_CACHE,
+        },
       },
     );
   } catch (err) {
     console.error("[desk-klines]", err);
     return NextResponse.json(
-      { error: "Unable to load desk chart history right now." },
-      { status: 502 },
+      {
+        error: "Unable to load desk chart history right now.",
+        bars: [],
+        hasMore: true,
+        retryable: true,
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 }
