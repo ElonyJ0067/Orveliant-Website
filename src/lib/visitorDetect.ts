@@ -153,7 +153,7 @@ function classifyByRdns(rdns: string | undefined, name: string | undefined, foun
 }
 
 function scanLegacyProviders(found: string[]) {
-  const w = window as Window & Record<string, unknown>;
+  const w = window as unknown as Window & Record<string, unknown>;
 
   const eth = w.ethereum as EthProvider | undefined;
   if (eth) {
