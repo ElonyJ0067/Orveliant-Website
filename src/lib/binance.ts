@@ -6,6 +6,7 @@
  * Strategy tuned for serverless (~10s Netlify limit):
  * 1) Race the two market-data hosts (not all three — avoids 429 storms)
  * 2) Fall back to api.binance.com once if both miss
+ * 3) One full-cycle retry with backoff (Netlify cold + upstream blips)
  */
 const BINANCE_PRIMARY = [
   "https://data-api.binance.vision",
@@ -25,8 +26,8 @@ type FetchInit = RequestInit & {
   next?: { revalidate?: number };
 };
 
-/** Keep under Netlify hobby function budget when a host hangs. */
-const HOST_TIMEOUT_MS = 4_500;
+/** Per-host budget; keep headroom under Netlify hobby ~10s for a full cycle+retry. */
+const HOST_TIMEOUT_MS = 3_800;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -54,7 +55,7 @@ async function fetchHost(
     });
 
     if (res.status === 429) {
-      await sleep(550);
+      await sleep(700);
       const retryCtrl = new AbortController();
       const retryTimer = setTimeout(() => retryCtrl.abort(), HOST_TIMEOUT_MS);
       try {
@@ -92,6 +93,20 @@ async function tryHost(
   return res;
 }
 
+async function attemptAll(
+  path: string,
+  init?: FetchInit,
+): Promise<Response> {
+  try {
+    return await Promise.any(
+      BINANCE_PRIMARY.map((base) => tryHost(base, path, init)),
+    );
+  } catch {
+    /* both primaries missed */
+  }
+  return tryHost(BINANCE_FALLBACK, path, init);
+}
+
 /**
  * GET a Binance REST path (must start with `/api/...`).
  */
@@ -102,16 +117,14 @@ export async function binanceGet(
   const path = pathAndQuery.startsWith("/") ? pathAndQuery : `/${pathAndQuery}`;
 
   try {
-    return await Promise.any(
-      BINANCE_PRIMARY.map((base) => tryHost(base, path, init)),
-    );
+    return await attemptAll(path, init);
   } catch {
-    /* both primaries missed — one last host */
-  }
-
-  try {
-    return await tryHost(BINANCE_FALLBACK, path, init);
-  } catch {
-    throw new Error("Binance unreachable");
+    // Second full cycle — common on Netlify after a cold 429/timeout.
+    await sleep(450);
+    try {
+      return await attemptAll(path, init);
+    } catch {
+      throw new Error("Binance unreachable");
+    }
   }
 }

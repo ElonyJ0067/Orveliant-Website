@@ -147,7 +147,8 @@ export async function fetchChartJson<T extends object>(
     return existing as Promise<ChartJsonResult<T>>;
   }
 
-  const retries = opts?.retries ?? (isHistoryUrl(url) ? 3 : 1);
+  // History pages need extra retries on Netlify (Binance 429/timeout blips).
+  const retries = opts?.retries ?? (isHistoryUrl(url) ? 5 : 1);
   const bust = Boolean(opts?.bust);
 
   const exec = async (): Promise<ChartJsonResult<T>> => {

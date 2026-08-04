@@ -23,6 +23,10 @@ import {
   warmChartUrl,
 } from "@/lib/chartFetch";
 import {
+  EDGE_LOAD_FROM,
+  startLeftEdgeGuardian,
+} from "@/lib/chartHistoryEdge";
+import {
   DESK_INTERVALS,
   DESK_RANGES,
   INITIAL_LIMIT,
@@ -316,7 +320,7 @@ export function DeskChart({
     setLoadingMore(true);
     try {
       const oldest = current[0].t;
-      const { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
+      let { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
         endTimeMs: oldest * 1000 - 1,
         limit: HISTORY_PAGE,
       });
@@ -328,10 +332,24 @@ export function DeskChart({
         return false;
       }
 
-      const { bars: merged, added } = mergeBars(current, older);
+      let { bars: merged, added } = mergeBars(current, older);
       if (added <= 0) {
-        // Duplicate/overlap page — keep hasMore so the user can retry; do not hard-stop.
-        return false;
+        // Duplicate/overlap — bust mem/CDN once (common Netlify miss).
+        const bustUrl =
+          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+          `&interval=${interval}&limit=${HISTORY_PAGE}` +
+          `&endTime=${oldest * 1000 - 1}`;
+        const busted = await fetchChartJson<{
+          bars?: Bar[];
+          hasMore?: boolean;
+          retryable?: boolean;
+        }>(bustUrl, { bust: true, retries: 2 });
+        if (busted.ok && !busted.json.retryable) {
+          older = (busted.json.bars ?? []) as Bar[];
+          more = Boolean(busted.json.hasMore);
+          ({ bars: merged, added } = mergeBars(current, older));
+        }
+        if (added <= 0) return false;
       }
 
       // Warm the following page (stable URL) so the next edge hit is instant.
@@ -362,6 +380,26 @@ export function DeskChart({
   loadOlderRef.current = loadOlder;
   const autoFillPagesRef = useRef(0);
   const autoFillFailsRef = useRef(0);
+
+  // Netlify: edge fetch often fails once; keep retrying while the left gutter is open.
+  useEffect(() => {
+    return startLeftEdgeGuardian({
+      getChart: () => chartRef.current,
+      hasMore: () => hasMoreRef.current,
+      loadingMore: () => loadingMoreRef.current,
+      viewReady: () => viewReadyRef.current,
+      loadOlder: () => loadOlderRef.current(),
+      warm: () => {
+        const data = barsRef.current;
+        if (!data.length) return;
+        warmChartUrl(
+          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+            `&interval=${interval}&limit=${HISTORY_PAGE}` +
+            `&endTime=${data[0].t * 1000 - 1}`,
+        );
+      },
+    });
+  }, [coinId, interval]);
 
   // Initial / interval / coin history load.
   useEffect(() => {
@@ -719,18 +757,10 @@ export function DeskChart({
         }
       }
 
-      // Load only at the true left edge. Earlier (from<40) + shift felt sticky.
+      // Keep a left buffer ahead of the viewport so pan never hits a blank gutter.
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 8) {
+      if (logical.from < EDGE_LOAD_FROM) {
         void loadOlderRef.current();
-      } else if (logical.from < 80 && barsRef.current.length) {
-        // Background warm so the edge hit doesn’t hitch.
-        const oldest = barsRef.current[0].t;
-        warmChartUrl(
-          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
-            `&interval=${interval}&limit=${HISTORY_PAGE}` +
-            `&endTime=${oldest * 1000 - 1}`,
-        );
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
@@ -823,7 +853,22 @@ export function DeskChart({
     }
 
     if (!viewReadyRef.current) {
-      requestAnimationFrame(() => applyVisibleRange(rangeRef.current, true));
+      requestAnimationFrame(() => {
+        applyVisibleRange(rangeRef.current, true);
+        // Deepen buffer after first paint so the first long pan stays fluid.
+        if (hasMoreRef.current) {
+          const deepen = () => {
+            void loadOlderRef.current().then((ok) => {
+              if (ok) void loadOlderRef.current();
+            });
+          };
+          if (typeof requestIdleCallback === "function") {
+            requestIdleCallback(deepen, { timeout: 900 });
+          } else {
+            window.setTimeout(deepen, 350);
+          }
+        }
+      });
     }
   }, [seriesPack, bars, applyVisibleRange]);
 

@@ -17,6 +17,10 @@ import {
   fetchChartJson,
   warmChartUrl,
 } from "@/lib/chartFetch";
+import {
+  EDGE_LOAD_FROM,
+  startLeftEdgeGuardian,
+} from "@/lib/chartHistoryEdge";
 import { useLivePrices } from "@/lib/useLivePrices";
 import { LivePrice } from "./LivePrice";
 
@@ -207,17 +211,17 @@ export function PriceChart({
         `&days=${encodeURIComponent(daysAtStart)}` +
         `&endTime=${oldestSec * 1000 - 1}`;
 
-      const { ok, json } = await fetchChartJson<{
+      let { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-      }>(url, { retries: 3 });
+      }>(url, { retries: 5 });
 
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
 
       if (!ok || json.retryable) return false;
 
-      const older: Point[] = (json.series ?? []).map(
+      let older: Point[] = (json.series ?? []).map(
         (d: { time: number; value: number }) => ({
           time: d.time as Time,
           value: d.value,
@@ -231,10 +235,31 @@ export function PriceChart({
       }
 
       const beforeLen = current.length;
-      const merged = mergePoints(older, current);
-      const added = merged.length - beforeLen;
-      // Overlap/duplicate — keep hasMore so scroll can retry; do not hard-stop.
-      if (added <= 0) return false;
+      let merged = mergePoints(older, current);
+      let added = merged.length - beforeLen;
+      // Overlap (bad edge/CDN page) — bust once before the guardian retries again.
+      if (added <= 0) {
+        const busted = await fetchChartJson<{
+          series?: { time: number; value: number }[];
+          hasMore?: boolean;
+          retryable?: boolean;
+        }>(url, { retries: 2, bust: true });
+        if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) {
+          return false;
+        }
+        if (busted.ok && !busted.json.retryable) {
+          older = (busted.json.series ?? []).map(
+            (d: { time: number; value: number }) => ({
+              time: d.time as Time,
+              value: d.value,
+            }),
+          );
+          merged = mergePoints(older, current);
+          added = merged.length - beforeLen;
+          json = busted.json;
+        }
+        if (added <= 0) return false;
+      }
 
       dataRef.current = merged;
       hasMoreRef.current = Boolean(json.hasMore);
@@ -285,6 +310,27 @@ export function PriceChart({
   useEffect(() => {
     loadOlderRef.current = loadOlder;
   }, [loadOlder]);
+
+  // Netlify: first edge fetch often 503s once; keep retrying while parked on the left.
+  useEffect(() => {
+    return startLeftEdgeGuardian({
+      getChart: () => chartRef.current,
+      hasMore: () => hasMoreRef.current,
+      loadingMore: () => loadingMoreRef.current,
+      viewReady: () => viewReadyRef.current,
+      loadOlder: () => loadOlderRef.current(),
+      warm: () => {
+        const data = dataRef.current;
+        if (!data.length) return;
+        const oldestSec = pointTimeSec(data[0].time);
+        warmChartUrl(
+          `/api/chart?id=${encodeURIComponent(idRef.current)}` +
+            `&days=${encodeURIComponent(daysRef.current)}` +
+            `&endTime=${oldestSec * 1000 - 1}`,
+        );
+      },
+    });
+  }, [id, days]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -400,17 +446,10 @@ export function PriceChart({
           });
         }
       }
-      // Load only at the true left edge; warm earlier for a smooth handoff.
+      // Keep a left buffer ahead of the viewport so pan never hits a blank gutter.
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 8) {
+      if (logical.from < EDGE_LOAD_FROM) {
         void loadOlderRef.current();
-      } else if (logical.from < 80 && dataRef.current.length) {
-        const oldestSec = pointTimeSec(dataRef.current[0].time);
-        warmChartUrl(
-          `/api/chart?id=${encodeURIComponent(idRef.current)}` +
-            `&days=${encodeURIComponent(daysRef.current)}` +
-            `&endTime=${oldestSec * 1000 - 1}`,
-        );
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
@@ -481,11 +520,27 @@ export function PriceChart({
         setHigh(s.high);
         setLow(s.low);
 
-        // Show the chip window (latest N bars); rest of the 1000-bar page is buffer.
+        // Show the chip window; deepen history in the background for seamless pan-back.
         requestAnimationFrame(() => {
           if (gen !== fetchGenRef.current) return;
           snapToLatest(data);
           viewReadyRef.current = true;
+          if (json.hasMore && data.length && !STABLES.has(id)) {
+            // Two quiet pages after paint ≈ seamless pan for a long stretch.
+            const deepen = () => {
+              if (gen !== fetchGenRef.current) return;
+              void loadOlderRef.current().then((ok) => {
+                if (ok && gen === fetchGenRef.current) {
+                  void loadOlderRef.current();
+                }
+              });
+            };
+            if (typeof requestIdleCallback === "function") {
+              requestIdleCallback(deepen, { timeout: 900 });
+            } else {
+              window.setTimeout(deepen, 350);
+            }
+          }
         });
         setLive(Boolean(json.live));
         setLoading(false);
