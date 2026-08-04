@@ -177,16 +177,19 @@ export function warmChartUrl(url: string): void {
 /**
  * Clamp a logical range so the plot never shows a blank half when history
  * hasn’t loaded (or failed). Returns null when no clamp is needed.
+ *
+ * When `allowLeftPull` is set, a small negative `from` is kept so the user can
+ * pan past bar 0 — that range-change is what triggers the next history page.
  */
 export function clampLogicalRange(
   logical: { from: number; to: number },
   barCount: number,
-  opts?: { rightPad?: number; minSpan?: number },
+  opts?: { rightPad?: number; minSpan?: number; allowLeftPull?: boolean },
 ): { from: number; to: number } | null {
   if (barCount <= 0) return null;
   const rightPad = opts?.rightPad ?? 8;
   const minSpan = opts?.minSpan ?? 16;
-  const minFrom = -0.35;
+  const minFrom = opts?.allowLeftPull ? -24 : -0.35;
   const maxTo = barCount - 1 + rightPad;
   let from = logical.from;
   let to = logical.to;
@@ -203,7 +206,7 @@ export function clampLogicalRange(
   span = Math.max(minSpan, to - from);
   // If still wider than all data + pad, fit to content.
   if (span > barCount + rightPad + 2) {
-    from = minFrom;
+    from = opts?.allowLeftPull ? Math.min(minFrom, 0) : 0;
     to = maxTo;
   }
 
@@ -214,4 +217,10 @@ export function clampLogicalRange(
     return null;
   }
   return { from, to };
+}
+
+/** History URL with a unique bust token so CDN/browser never reuse a wrong page. */
+export function historyRequestUrl(baseUrl: string): string {
+  const join = baseUrl.includes("?") ? "&" : "?";
+  return `${baseUrl}${join}_ts=${Date.now()}`;
 }

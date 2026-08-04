@@ -18,29 +18,21 @@ export const DESK_RANGES = [
 
 export type DeskRange = (typeof DESK_RANGES)[number]["id"];
 
-/**
- * First paint targets — default visible range + large left buffer so pan-back
- * works immediately on Netlify without waiting on endTime pagination.
- *   15m → 1D≈96 · 1h → 5D≈120 · 4h → 1M≈180 · 1d → 3M≈90  (+ ~400 buffer)
- */
+/** Always pull Binance’s max page on first paint — max left-scroll without pagination. */
 export const INITIAL_LIMIT: Record<DeskInterval, number> = {
-  "15m": 520,
-  "1h": 560,
-  "4h": 620,
-  "1d": 520,
+  "15m": 1000,
+  "1h": 1000,
+  "4h": 1000,
+  "1d": 1000,
 };
 
-/** Binance max kline page — fewer Netlify round-trips when scrolling back. */
+/** Binance max kline page. */
 export const HISTORY_PAGE = 1000;
-export const MAX_BARS = 8_000;
+export const MAX_BARS = 12_000;
 
 /** Exact first-fetch size for a TF + visible range (capped at Binance 1000). */
-export function initialLimitFor(interval: DeskInterval, range?: DeskRange): number {
-  const rangeId = range ?? defaultRangeForInterval(interval);
-  const span = DESK_RANGES.find((r) => r.id === rangeId)?.seconds ?? 5 * 86_400;
-  const sec = intervalSeconds(interval);
-  // Visible bars for the chip + ~400 older bars as a scroll buffer.
-  return Math.min(1000, Math.max(INITIAL_LIMIT[interval], Math.ceil(span / sec) + 400));
+export function initialLimitFor(_interval: DeskInterval, _range?: DeskRange): number {
+  return 1000;
 }
 
 export function defaultRangeForInterval(interval: DeskInterval): DeskRange {
@@ -58,12 +50,25 @@ export function isDeskInterval(v: string): v is DeskInterval {
   return DESK_INTERVALS.some((i) => i.id === v);
 }
 
-export function mergeBars(existing: Bar[], incoming: Bar[]): Bar[] {
+export function mergeBars(existing: Bar[], incoming: Bar[]): {
+  bars: Bar[];
+  added: number;
+} {
   const map = new Map<number, Bar>();
   for (const b of existing) map.set(b.t, b);
-  for (const b of incoming) map.set(b.t, b);
-  const merged = Array.from(map.values()).sort((a, b) => a.t - b.t);
-  return merged.length > MAX_BARS ? merged.slice(merged.length - MAX_BARS) : merged;
+  let added = 0;
+  for (const b of incoming) {
+    if (!map.has(b.t)) added += 1;
+    map.set(b.t, b);
+  }
+  let bars = Array.from(map.values()).sort((a, b) => a.t - b.t);
+  if (bars.length > MAX_BARS) {
+    // Keep the newest window; if a prepend was fully clipped, added becomes 0.
+    const clipped = bars.length - MAX_BARS;
+    bars = bars.slice(clipped);
+    added = Math.max(0, added - clipped);
+  }
+  return { bars, added };
 }
 
 export function barsCoverSeconds(bars: Bar[], seconds: number): boolean {

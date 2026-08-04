@@ -15,7 +15,7 @@ import { fmtPrice } from "@/lib/coins";
 import {
   clampLogicalRange,
   fetchChartJson,
-  warmChartUrl,
+  historyRequestUrl,
 } from "@/lib/chartFetch";
 import { useLivePrices } from "@/lib/useLivePrices";
 import { LivePrice } from "./LivePrice";
@@ -195,119 +195,63 @@ export function PriceChart({
     setLoadingMore(true);
     try {
       const oldestSec = pointTimeSec(current[0].time);
-      const url =
+      const url = historyRequestUrl(
         `/api/chart?id=${encodeURIComponent(id)}` +
-        `&days=${encodeURIComponent(daysAtStart)}` +
-        `&endTime=${oldestSec * 1000 - 1}`;
+          `&days=${encodeURIComponent(daysAtStart)}` +
+          `&endTime=${oldestSec * 1000 - 1}`,
+      );
 
-      let { ok, json } = await fetchChartJson<{
+      const { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-        oldest?: number;
-        newest?: number;
-      }>(url, { retries: 3 });
+      }>(url, { retries: 3, bust: true });
 
-      // Range/coin changed while we were fetching — drop this page.
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
 
-      // Transient Netlify/Binance miss — keep hasMore; clamp keeps the plot full.
-      if (!ok || json.retryable) {
-        if (chart && logical) {
-          const clamped = clampLogicalRange(logical, dataRef.current.length, {
-            rightPad: 4,
-          });
-          if (clamped) {
-            try {
-              chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
-            } catch {
-              /* ignore */
-            }
-          }
-        }
-        return false;
-      }
+      if (!ok || json.retryable) return false;
 
-      let older: Point[] = (json.series ?? []).map(
+      const older: Point[] = (json.series ?? []).map(
         (d: { time: number; value: number }) => ({
           time: d.time as Time,
           value: d.value,
         }),
       );
 
+      // Empty page only → true end of exchange history.
       if (!older.length) {
         hasMoreRef.current = false;
         return false;
       }
 
-      // Duplicate “recent” window (CDN/cache bug) — bust once, don’t kill hasMore.
-      let beforeLen = current.length;
-      let merged = mergePoints(older, current);
-      let added = merged.length - beforeLen;
-      if (added <= 0) {
-        const olderNewest = pointTimeSec(older[older.length - 1].time);
-        if (olderNewest >= oldestSec) {
-          const busted = await fetchChartJson<{
-            series?: { time: number; value: number }[];
-            hasMore?: boolean;
-            retryable?: boolean;
-          }>(url, { bust: true, retries: 2 });
-          if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) {
-            return false;
-          }
-          if (busted.ok && !busted.json.retryable) {
-            older = (busted.json.series ?? []).map(
-              (d: { time: number; value: number }) => ({
-                time: d.time as Time,
-                value: d.value,
-              }),
-            );
-            merged = mergePoints(older, current);
-            added = merged.length - beforeLen;
-            json = busted.json;
-          }
-        }
-        if (added <= 0) {
-          // Truly nothing new older than what we have.
-          hasMoreRef.current = false;
-          return false;
-        }
-      }
+      const beforeLen = current.length;
+      const merged = mergePoints(older, current);
+      const added = merged.length - beforeLen;
+      // Overlap/duplicate — keep hasMore so scroll can retry; do not hard-stop.
+      if (added <= 0) return false;
 
       dataRef.current = merged;
       hasMoreRef.current = Boolean(json.hasMore);
-      seriesRef.current?.setData(merged);
+
+      // setData + logical shift synchronously (rAF races froze the left edge).
+      if (seriesRef.current) {
+        seriesRef.current.setData(merged);
+        if (chart && logical) {
+          try {
+            chart.timeScale().setVisibleLogicalRange({
+              from: logical.from + added,
+              to: logical.to + added,
+            } as LogicalRange);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
 
       const s = statsFrom(merged);
       setHigh(s.high);
       setLow(s.low);
       setChartLast(s.chartLast);
-
-      if (chart && logical && added > 0) {
-        // Double rAF: setData can reset the time scale before the first frame.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (gen !== fetchGenRef.current) return;
-            try {
-              chart.timeScale().setVisibleLogicalRange({
-                from: logical.from + added,
-                to: logical.to + added,
-              } as LogicalRange);
-            } catch {
-              /* ignore */
-            }
-          });
-        });
-      }
-
-      if (hasMoreRef.current && merged.length) {
-        const nextOldest = pointTimeSec(merged[0].time);
-        warmChartUrl(
-          `/api/chart?id=${encodeURIComponent(id)}` +
-            `&days=${encodeURIComponent(daysAtStart)}` +
-            `&endTime=${nextOldest * 1000 - 1}`,
-        );
-      }
       return true;
     } catch {
       return false;
@@ -423,33 +367,34 @@ export function PriceChart({
       if (!logical || !viewReadyRef.current) return;
       const n = dataRef.current.length;
       if (n > 0) {
-        const clamped = clampLogicalRange(logical, n, { rightPad: 4 });
+        const clamped = clampLogicalRange(logical, n, {
+          rightPad: 4,
+          allowLeftPull: hasMoreRef.current,
+        });
         if (clamped) {
           try {
             chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
           } catch {
             /* ignore */
           }
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 16) {
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 40) {
             void loadOlderRef.current();
           }
           return;
         }
       }
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 16) {
+      if (logical.from < 40) {
         void loadOlderRef.current();
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
 
-    // Library often won't emit range changes when already at bar 0 — wheel must
-    // force a history fetch or scroll appears dead (prod Network: no endTime=).
     const host = containerRef.current;
     const onWheel = () => {
       if (!viewReadyRef.current || !hasMoreRef.current || loadingMoreRef.current) return;
       const logical = chart.timeScale().getVisibleLogicalRange();
-      if (logical && logical.from < 16) {
+      if (logical && logical.from < 40) {
         void loadOlderRef.current();
       }
     };
@@ -522,19 +467,11 @@ export function PriceChart({
         setHigh(s.high);
         setLow(s.low);
 
-        // Show the chip window (latest N bars); older bars stay as a left buffer.
+        // Show the chip window (latest N bars); rest of the 1000-bar page is buffer.
         requestAnimationFrame(() => {
           if (gen !== fetchGenRef.current) return;
           snapToLatest(data);
           viewReadyRef.current = true;
-          // If server buffer is thin, pull one more page in the background.
-          const leftPad = data.length - (visibleBarsRef.current || 0);
-          if (json.hasMore && leftPad < 80 && data.length && !STABLES.has(id)) {
-            window.setTimeout(() => {
-              if (gen !== fetchGenRef.current) return;
-              void loadOlderRef.current();
-            }, 100);
-          }
         });
         setLive(Boolean(json.live));
         setLoading(false);

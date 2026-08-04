@@ -19,8 +19,7 @@ const BINANCE_RANGE: Record<string, { interval: string; limit: number }> = {
   max: { interval: "1w", limit: 500 },
 };
 
-/** Extra bars left of the visible chip so pan-back works without a round-trip. */
-const LEFT_BUFFER = 420;
+/** Always request Binance max on first paint; client shows only `visible` bars. */
 
 /** CoinGecko `days` param (1h is sliced from a 1-day series). */
 const CG_DAYS: Record<string, string> = {
@@ -86,10 +85,8 @@ export async function GET(request: Request) {
   if (useBinance) {
     try {
       const cfg = BINANCE_RANGE[days] ?? BINANCE_RANGE["7"];
-      // Initial: visible chip + left buffer. Paginated: large page, never CDN-cached.
-      const limit = paginating
-        ? Math.min(1000, Math.max(cfg.limit, 500))
-        : Math.min(1000, cfg.limit + LEFT_BUFFER);
+      // Initial + history: Binance max page so left-scroll has room before pagination.
+      const limit = 1000;
       let path =
         `/api/v3/klines?symbol=${coin.binance}` +
         `&interval=${cfg.interval}&limit=${limit}`;

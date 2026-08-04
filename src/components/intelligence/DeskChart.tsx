@@ -20,7 +20,7 @@ import { COINS, fmtPrice } from "@/lib/coins";
 import {
   clampLogicalRange,
   fetchChartJson,
-  warmChartUrl,
+  historyRequestUrl,
 } from "@/lib/chartFetch";
 import {
   DESK_INTERVALS,
@@ -153,13 +153,19 @@ async function fetchDeskBars(
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
 
-  const url = `/api/desk-klines?${params}`;
+  const raw = `/api/desk-klines?${params}`;
+  // History pages always bust — duplicate cached windows were killing scroll-back.
+  const url =
+    opts?.endTimeMs != null ? historyRequestUrl(raw) : raw;
   const { ok, json } = await fetchChartJson<{
     bars?: Bar[];
     hasMore?: boolean;
     retryable?: boolean;
     error?: string;
-  }>(url, { retries: opts?.endTimeMs != null ? 4 : 2 });
+  }>(url, {
+    retries: opts?.endTimeMs != null ? 4 : 2,
+    bust: opts?.endTimeMs != null,
+  });
 
   if (!ok || json.retryable) {
     const err = new Error(json.error || "Failed to load chart") as Error & {
@@ -206,6 +212,8 @@ export function DeskChart({
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const viewReadyRef = useRef(false);
+  /** Bars length last applied to the series — detects prepends for logical shift. */
+  const appliedLenRef = useRef(0);
   const rangeRef = useRef<DeskRange>(defaultRangeForInterval(interval));
   const applyViewRef = useRef<(rangeId: DeskRange, force?: boolean) => void>(() => {});
 
@@ -303,99 +311,36 @@ export function DeskChart({
     const current = barsRef.current;
     if (!current.length) return false;
 
-    const chart = chartRef.current;
-    const logical = chart?.timeScale().getVisibleLogicalRange() ?? null;
-
     loadingMoreRef.current = true;
     setLoadingMore(true);
     try {
       const oldest = current[0].t;
-      let { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
+      const { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
         endTimeMs: oldest * 1000 - 1,
         limit: HISTORY_PAGE,
       });
+
+      // Only a truly empty page means exchange history ended.
       if (!older.length) {
         setHasMore(false);
         hasMoreRef.current = false;
         return false;
       }
 
-      const beforeLen = current.length;
-      let merged = mergeBars(older, current);
-      let added = merged.length - beforeLen;
-      // Duplicate recent window (bad cache) — retry once with cache bust.
+      const { bars: merged, added } = mergeBars(current, older);
       if (added <= 0) {
-        const olderNewest = older[older.length - 1]?.t ?? 0;
-        if (olderNewest >= oldest) {
-          const params = new URLSearchParams({
-            id: coinId,
-            interval,
-            limit: String(HISTORY_PAGE),
-            endTime: String(oldest * 1000 - 1),
-          });
-          const busted = await fetchChartJson<{
-            bars?: Bar[];
-            hasMore?: boolean;
-            retryable?: boolean;
-          }>(`/api/desk-klines?${params}`, { bust: true, retries: 2 });
-          if (busted.ok && !busted.json.retryable) {
-            older = (busted.json.bars ?? []) as Bar[];
-            more = Boolean(busted.json.hasMore);
-            merged = mergeBars(older, current);
-            added = merged.length - beforeLen;
-          }
-        }
-        if (added <= 0) {
-          setHasMore(false);
-          hasMoreRef.current = false;
-          return false;
-        }
+        // Duplicate/overlap page — keep hasMore so the user can retry; do not hard-stop.
+        return false;
       }
 
+      // State update only — series setData + logical shift happen together in the
+      // bars effect (avoids rAF race that wiped the prepend / froze the left edge).
+      barsRef.current = merged;
       setBars(merged);
       setHasMore(more);
       hasMoreRef.current = more;
-      barsRef.current = merged;
-
-      // Keep the same candles under the cursor after prepending history.
-      if (chart && logical && added > 0) {
-        requestAnimationFrame(() => {
-          try {
-            chart.timeScale().setVisibleLogicalRange({
-              from: logical.from + added,
-              to: logical.to + added,
-            } as LogicalRange);
-          } catch {
-            /* ignore */
-          }
-          // Re-enable autoscale so candles aren't left crushed after a bad pan.
-          candleRef.current?.priceScale().applyOptions({ autoScale: true });
-        });
-      }
-
-      if (more && merged.length) {
-        warmChartUrl(
-          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
-            `&interval=${interval}&limit=${HISTORY_PAGE}` +
-            `&endTime=${merged[0].t * 1000 - 1}`,
-        );
-      }
       return true;
     } catch {
-      // Failed page — clamp so empty scroll can't crush the price scale.
-      if (chart && logical) {
-        const clamped = clampLogicalRange(logical, barsRef.current.length, {
-          rightPad: 8,
-        });
-        if (clamped) {
-          try {
-            chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
-          } catch {
-            /* ignore */
-          }
-        }
-        candleRef.current?.priceScale().applyOptions({ autoScale: true });
-      }
       return false;
     } finally {
       loadingMoreRef.current = false;
@@ -414,6 +359,7 @@ export function DeskChart({
     viewReadyRef.current = false;
     autoFillPagesRef.current = 0;
     autoFillFailsRef.current = 0;
+    appliedLenRef.current = 0;
     setChartLoading(true);
     setChartError("");
     setBars([]);
@@ -436,21 +382,6 @@ export function DeskChart({
         setHasMore(more);
         barsRef.current = next;
         hasMoreRef.current = more;
-
-        // Prefetch first older page so scroll-back is ready after first paint.
-        if (more && next.length) {
-          const warm = () =>
-            warmChartUrl(
-              `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
-                `&interval=${interval}&limit=${HISTORY_PAGE}` +
-                `&endTime=${next[0].t * 1000 - 1}`,
-            );
-          if (typeof requestIdleCallback === "function") {
-            requestIdleCallback(warm, { timeout: 1200 });
-          } else {
-            window.setTimeout(warm, 400);
-          }
-        }
       } catch (err) {
         if (!cancelled) {
           setChartError(err instanceof Error ? err.message : "Failed to load chart");
@@ -465,20 +396,17 @@ export function DeskChart({
     };
   }, [coinId, interval]);
 
-  // Cover the selected range, then keep a left buffer so pan-left can move.
+  // Only auto-fill when the selected range chip isn’t covered yet.
   useEffect(() => {
     if (chartLoading || loadingMore || !bars.length || !hasMore) return;
     const cfg = DESK_RANGES.find((r) => r.id === range);
-    const logical = chartRef.current?.timeScale().getVisibleLogicalRange();
-    const needRange = Boolean(cfg && !barsCoverSeconds(bars, cfg.seconds));
-    const needBuffer = Boolean(logical && logical.from < 48);
-    if (!needRange && !needBuffer) return;
-    if (autoFillPagesRef.current >= 12) return;
-    if (autoFillFailsRef.current >= 5) return;
+    if (!cfg || barsCoverSeconds(bars, cfg.seconds)) return;
+    if (autoFillPagesRef.current >= 6) return;
+    if (autoFillFailsRef.current >= 4) return;
     let cancelled = false;
     (async () => {
       if (autoFillFailsRef.current > 0) {
-        await new Promise((r) => setTimeout(r, 600 * autoFillFailsRef.current));
+        await new Promise((r) => setTimeout(r, 500 * autoFillFailsRef.current));
       }
       if (cancelled) return;
       const ok = await loadOlder();
@@ -766,6 +694,7 @@ export function DeskChart({
         const clamped = clampLogicalRange(logical, n, {
           rightPad: 8,
           minSpan: 20,
+          allowLeftPull: hasMoreRef.current,
         });
         if (clamped) {
           try {
@@ -774,7 +703,7 @@ export function DeskChart({
             /* ignore */
           }
           candleRef.current?.priceScale().applyOptions({ autoScale: true });
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 48) {
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 40) {
             void loadOlderRef.current();
           }
           return;
@@ -782,31 +711,31 @@ export function DeskChart({
       }
 
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 48) {
+      if (logical.from < 40) {
         void loadOlderRef.current();
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
 
-    // When already at bar 0, wheel/zoom often doesn't change the logical range.
+    // Wheel at/near the left edge must fetch even when the library emits no pan.
     const host = containerRef.current;
     const onWheel = () => {
       if (!hasMoreRef.current || loadingMoreRef.current) return;
       const logical = chart.timeScale().getVisibleLogicalRange();
-      if (logical && logical.from < 48) {
+      if (logical && logical.from < 40) {
         void loadOlderRef.current();
       }
     };
     host.addEventListener("wheel", onWheel, { passive: true });
 
-    // Re-paint current bars after pane recreate without resetting a ready view
-    // unless this is a fresh coin/interval load (viewReady false).
+    // Re-paint current bars after pane recreate.
     if (barsRef.current.length) {
       const sp = toSeries(barsRef.current);
       candles.setData(sp.candles);
       volume.setData(sp.volumes);
       if (pressure) pressure.setData(sp.pressure);
       if (pulse) pulse.setData(sp.pulse);
+      appliedLenRef.current = barsRef.current.length;
       const last = barsRef.current[barsRef.current.length - 1];
       lastBarRef.current = last
         ? {
@@ -818,15 +747,7 @@ export function DeskChart({
             volume: last.v,
           }
         : null;
-      requestAnimationFrame(() => {
-        applyViewRef.current(rangeRef.current, true);
-        // Prefetch older bars into a left buffer (from=0 emits no further pans).
-        if (hasMoreRef.current) {
-          window.setTimeout(() => {
-            void loadOlderRef.current();
-          }, 80);
-        }
-      });
+      requestAnimationFrame(() => applyViewRef.current(rangeRef.current, true));
     }
 
     return () => {
@@ -844,8 +765,8 @@ export function DeskChart({
     };
   }, [showPressure, showPulse]);
 
-  // Push series data; only set visible range on first paint for this dataset.
-  // History prepends adjust the logical range inside loadOlder — do not reset zoom here.
+  // Push series data. On prepend, shift the logical range in the same turn as
+  // setData — rAF/effect races were freezing the left edge after one buffer.
   useEffect(() => {
     const candles = candleRef.current;
     const volume = volumeRef.current;
@@ -854,10 +775,17 @@ export function DeskChart({
     const chart = chartRef.current;
     if (!candles || !volume || !chart || !seriesPack.candles.length) return;
 
+    const prevLen = appliedLenRef.current;
+    const nextLen = seriesPack.candles.length;
+    const added = prevLen > 0 ? nextLen - prevLen : 0;
+    const logical =
+      added > 0 ? chart.timeScale().getVisibleLogicalRange() : null;
+
     candles.setData(seriesPack.candles);
     volume.setData(seriesPack.volumes);
     if (pressure) pressure.setData(seriesPack.pressure);
     if (pulse) pulse.setData(seriesPack.pulse);
+    appliedLenRef.current = nextLen;
 
     const last = bars[bars.length - 1];
     lastBarRef.current = last
@@ -871,15 +799,21 @@ export function DeskChart({
         }
       : null;
 
+    if (added > 0 && logical) {
+      try {
+        chart.timeScale().setVisibleLogicalRange({
+          from: logical.from + added,
+          to: logical.to + added,
+        } as LogicalRange);
+      } catch {
+        /* ignore */
+      }
+      candleRef.current?.priceScale().applyOptions({ autoScale: true });
+      return;
+    }
+
     if (!viewReadyRef.current) {
-      requestAnimationFrame(() => {
-        applyVisibleRange(rangeRef.current, true);
-        if (hasMoreRef.current) {
-          window.setTimeout(() => {
-            void loadOlderRef.current();
-          }, 80);
-        }
-      });
+      requestAnimationFrame(() => applyVisibleRange(rangeRef.current, true));
     }
   }, [seriesPack, bars, applyVisibleRange]);
 
