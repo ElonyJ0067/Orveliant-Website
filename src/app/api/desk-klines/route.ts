@@ -21,8 +21,6 @@ const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "1d": "1d",
 };
 
-const FRESH_CACHE =
-  "public, s-maxage=30, stale-while-revalidate=120";
 const NO_STORE = "private, no-store, max-age=0, must-revalidate";
 
 function parseKlines(rows: unknown[][]): Bar[] {
@@ -52,7 +50,7 @@ export async function GET(request: Request) {
   const intervalParam = searchParams.get("interval") ?? "1h";
   const endTimeParam = searchParams.get("endTime");
   const limitParam = searchParams.get("limit");
-  const pages = parsePagesParam(searchParams.get("pages") ?? "3");
+  const pages = parsePagesParam(searchParams.get("pages") ?? "4");
 
   if (!isDeskInterval(intervalParam)) {
     return NextResponse.json({ error: "Unsupported interval." }, { status: 400 });
@@ -110,7 +108,7 @@ export async function GET(request: Request) {
       },
       {
         headers: {
-          "Cache-Control": paginating ? NO_STORE : FRESH_CACHE,
+          "Cache-Control": NO_STORE,
           Vary: "Accept-Encoding",
         },
       },

@@ -32,7 +32,12 @@ export function MarketsView() {
             ))}
           </div>
         </div>
-        <PriceChart id={selected.id} symbol={selected.symbol} color={selected.color} />
+        <PriceChart
+          key={selected.id}
+          id={selected.id}
+          symbol={selected.symbol}
+          color={selected.color}
+        />
       </div>
 
       <MarketsTable />

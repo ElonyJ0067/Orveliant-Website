@@ -155,15 +155,21 @@ async function fetchChartJsonInner<T extends object>(
         };
         let endTime: string | null = null;
         let pages: string | null = null;
+        let id: string | null = null;
+        let days: string | null = null;
+        let interval: string | null = null;
         try {
           const parsed = new URL(url, window.location.origin);
           endTime = parsed.searchParams.get("endTime");
           pages = parsed.searchParams.get("pages");
+          id = parsed.searchParams.get("id");
+          days = parsed.searchParams.get("days");
+          interval = parsed.searchParams.get("interval");
         } catch {
           /* ignore malformed debug URL parse */
         }
         // #region agent log
-        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch attempt result", data: { path: url.split("?")[0], isHistory: isHistoryUrl(url), endTime, pages, attempt: i, retries, bust: Boolean(bust || i > 0), ok: result.ok, status: result.status, retryable: Boolean(payload.retryable), hasMore: payload.hasMore ?? null, seriesLen: Array.isArray(payload.series) ? payload.series.length : null, barsLen: Array.isArray(payload.bars) ? payload.bars.length : null }, timestamp: Date.now() });
+        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch attempt result", data: { path: url.split("?")[0], id, days, interval, isHistory: isHistoryUrl(url), endTime, pages, attempt: i, retries, bust: Boolean(bust || i > 0), ok: result.ok, status: result.status, retryable: Boolean(payload.retryable), hasMore: payload.hasMore ?? null, seriesLen: Array.isArray(payload.series) ? payload.series.length : null, barsLen: Array.isArray(payload.bars) ? payload.bars.length : null }, timestamp: Date.now() });
         // #endregion
       }
       if (result.ok) return result;
@@ -176,8 +182,19 @@ async function fetchChartJsonInner<T extends object>(
       return result;
     } catch (err) {
       if (typeof window !== "undefined") {
+        let id: string | null = null;
+        let days: string | null = null;
+        let interval: string | null = null;
+        try {
+          const parsed = new URL(url, window.location.origin);
+          id = parsed.searchParams.get("id");
+          days = parsed.searchParams.get("days");
+          interval = parsed.searchParams.get("interval");
+        } catch {
+          /* ignore malformed debug URL parse */
+        }
         // #region agent log
-        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch threw error", data: { path: url.split("?")[0], isHistory: isHistoryUrl(url), attempt: i, retries, bust: Boolean(bust || i > 0), error: err instanceof Error ? err.message : String(err) }, timestamp: Date.now() });
+        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch threw error", data: { path: url.split("?")[0], id, days, interval, isHistory: isHistoryUrl(url), attempt: i, retries, bust: Boolean(bust || i > 0), error: err instanceof Error ? err.message : String(err) }, timestamp: Date.now() });
         // #endregion
       }
       lastErr = err;

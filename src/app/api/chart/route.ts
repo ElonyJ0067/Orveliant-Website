@@ -33,9 +33,7 @@ const CG_DAYS: Record<string, string> = {
   max: "max",
 };
 
-/** Fresh windows only — never CDN-cache paginated history. */
-const FRESH_CACHE =
-  "public, s-maxage=30, stale-while-revalidate=120";
+/** Avoid cross-coin edge cache bleed on hosted deploys. */
 const NO_STORE = "private, no-store, max-age=0, must-revalidate";
 
 function dedupe(series: Series): Series {
@@ -78,8 +76,8 @@ export async function GET(request: Request) {
   const endTimeParam = searchParams.get("endTime");
   const endTime = endTimeParam ? Number(endTimeParam) : NaN;
   const paginating = Number.isFinite(endTime) && endTime > 0;
-  // Default: 3 pages on first paint + history (~3000 bars / Netlify RTT).
-  const pages = parsePagesParam(searchParams.get("pages") ?? "3");
+  // Default to deeper startup on hosted deploys.
+  const pages = parsePagesParam(searchParams.get("pages") ?? "4");
 
   const coin = COINS.find((c) => c.id === id) ?? COINS[0];
   const useBinance = Boolean(coin.binance) && !STABLES.has(coin.id);
@@ -106,6 +104,8 @@ export async function GET(request: Request) {
       if (series.length) {
         return NextResponse.json(
           {
+            id: coin.id,
+            symbol: coin.symbol,
             series,
             live: true,
             source: "binance",
@@ -117,7 +117,7 @@ export async function GET(request: Request) {
           },
           {
             headers: {
-              "Cache-Control": paginating ? NO_STORE : FRESH_CACHE,
+              "Cache-Control": NO_STORE,
               Vary: "Accept-Encoding",
             },
           },
@@ -127,6 +127,8 @@ export async function GET(request: Request) {
       if (paginating) {
         return NextResponse.json(
           {
+            id: coin.id,
+            symbol: coin.symbol,
             series: [] as Series,
             live: true,
             source: "binance",
@@ -166,6 +168,8 @@ export async function GET(request: Request) {
         const visible = (BINANCE_RANGE[days] ?? BINANCE_RANGE["7"]).limit;
         return NextResponse.json(
           {
+            id: coin.id,
+            symbol: coin.symbol,
             series,
             live: true,
             source: "coingecko",
@@ -175,7 +179,7 @@ export async function GET(request: Request) {
             oldest: series[0].time,
             newest: series[series.length - 1].time,
           },
-          { headers: { "Cache-Control": FRESH_CACHE } },
+          { headers: { "Cache-Control": NO_STORE } },
         );
       }
     }
@@ -187,16 +191,21 @@ export async function GET(request: Request) {
     days === "1h" ? 1 / 24 : days === "max" ? 365 * 4 : Number(days) || 7;
   const visible = (BINANCE_RANGE[days] ?? BINANCE_RANGE["7"]).limit;
   const series = synth(coin.id, synthDays);
-  return NextResponse.json({
-    series,
-    live: false,
-    source: "synthetic",
-    hasMore: false,
-    retryable: false,
-    visible,
-    oldest: series[0]?.time ?? 0,
-    newest: series[series.length - 1]?.time ?? 0,
-  });
+  return NextResponse.json(
+    {
+      id: coin.id,
+      symbol: coin.symbol,
+      series,
+      live: false,
+      source: "synthetic",
+      hasMore: false,
+      retryable: false,
+      visible,
+      oldest: series[0]?.time ?? 0,
+      newest: series[series.length - 1]?.time ?? 0,
+    },
+    { headers: { "Cache-Control": NO_STORE } },
+  );
 }
 
 function synth(id: string, days: number): Series {
