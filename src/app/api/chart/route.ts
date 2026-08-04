@@ -95,6 +95,7 @@ export async function GET(request: Request) {
       }
 
       // Historical windows are immutable — cache them in Next/CDN.
+      // Fresh windows stay short-lived so “now” doesn’t go stale on the edge.
       const res = await binanceGet(path, {
         next: { revalidate: paginating ? 3600 : 60 },
       });

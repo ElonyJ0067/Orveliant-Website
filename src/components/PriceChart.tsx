@@ -12,7 +12,11 @@ import {
   type Time,
 } from "lightweight-charts";
 import { fmtPrice } from "@/lib/coins";
-import { fetchChartJson, warmChartUrl } from "@/lib/chartFetch";
+import {
+  clampLogicalRange,
+  fetchChartJson,
+  warmChartUrl,
+} from "@/lib/chartFetch";
 import { useLivePrices } from "@/lib/useLivePrices";
 import { LivePrice } from "./LivePrice";
 
@@ -133,12 +137,14 @@ export function PriceChart({
   const [low, setLow] = useState(0);
   const [chartLast, setChartLast] = useState(0);
 
-  daysRef.current = days;
-
   const ticks = useLivePrices();
   const tick = ticks[id];
   const up = periodChange >= 0;
   const palette = up ? UP : DOWN;
+
+  useEffect(() => {
+    daysRef.current = days;
+  }, [days]);
 
   const snapToLatest = useCallback((data: Point[]) => {
     const chart = chartRef.current;
@@ -178,13 +184,27 @@ export function PriceChart({
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-      }>(url, { retries: 2 });
+      }>(url, { retries: 4 });
 
       // Range/coin changed while we were fetching — drop this page.
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return;
 
-      // Transient Netlify/Binance miss — keep hasMore so the user can retry.
-      if (!ok || json.retryable) return;
+      // Transient Netlify/Binance miss — keep hasMore; clamp keeps the plot full.
+      if (!ok || json.retryable) {
+        if (chart && logical) {
+          const clamped = clampLogicalRange(logical, dataRef.current.length, {
+            rightPad: 4,
+          });
+          if (clamped) {
+            try {
+              chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+        return;
+      }
 
       const older: Point[] = (json.series ?? []).map(
         (d: { time: number; value: number }) => ({
@@ -244,7 +264,9 @@ export function PriceChart({
     }
   }, [id]);
 
-  loadOlderRef.current = loadOlder;
+  useEffect(() => {
+    loadOlderRef.current = loadOlder;
+  }, [loadOlder]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -343,8 +365,24 @@ export function PriceChart({
     });
 
     const onLogical = (logical: LogicalRange | null) => {
-      if (!logical || loadingMoreRef.current || !viewReadyRef.current) return;
-      if (!hasMoreRef.current) return;
+      if (!logical || !viewReadyRef.current) return;
+      const n = dataRef.current.length;
+      if (n > 0) {
+        const clamped = clampLogicalRange(logical, n, { rightPad: 4 });
+        if (clamped) {
+          try {
+            chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
+          } catch {
+            /* ignore */
+          }
+          // Still request older bars when the user is pinned to the left edge.
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 12) {
+            void loadOlderRef.current();
+          }
+          return;
+        }
+      }
+      if (loadingMoreRef.current || !hasMoreRef.current) return;
       if (logical.from < 12) {
         void loadOlderRef.current();
       }
@@ -392,7 +430,7 @@ export function PriceChart({
       series?: { time: number; value: number }[];
       hasMore?: boolean;
       live?: boolean;
-    }>(url, { retries: 1 })
+    }>(url, { retries: 2 })
       .then(({ json }) => {
         if (!active || gen !== fetchGenRef.current || !seriesRef.current) return;
         const data: Point[] = (json.series ?? []).map(
@@ -580,7 +618,7 @@ export function PriceChart({
             style={{ left: tip.x, top: tip.y }}
           >
             <div className="text-[11px] text-ink-mute">
-              {formatAxisTime(tip.time, daysRef.current)}
+              {formatAxisTime(tip.time, days)}
             </div>
             <div className="mt-0.5 font-display text-sm font-semibold tabular-nums">
               {fmtPrice(tip.value)}

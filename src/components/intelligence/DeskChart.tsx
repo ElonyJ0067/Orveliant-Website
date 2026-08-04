@@ -17,7 +17,11 @@ import {
 import type { Bar, IntelligencePack } from "@/lib/intelligence/types";
 import type { LiveKline } from "@/lib/useLiveKline";
 import { COINS, fmtPrice } from "@/lib/coins";
-import { fetchChartJson, warmChartUrl } from "@/lib/chartFetch";
+import {
+  clampLogicalRange,
+  fetchChartJson,
+  warmChartUrl,
+} from "@/lib/chartFetch";
 import {
   DESK_INTERVALS,
   DESK_RANGES,
@@ -155,13 +159,13 @@ async function fetchDeskBars(
     hasMore?: boolean;
     retryable?: boolean;
     error?: string;
-  }>(url, { retries: opts?.endTimeMs != null ? 2 : 1 });
+  }>(url, { retries: opts?.endTimeMs != null ? 4 : 2 });
 
   if (!ok || json.retryable) {
     const err = new Error(json.error || "Failed to load chart") as Error & {
       retryable?: boolean;
     };
-    err.retryable = true;
+    err.retryable = Boolean(json.retryable) || !ok;
     throw err;
   }
 
@@ -288,11 +292,8 @@ export function DeskChart({
     } catch {
       chart.timeScale().fitContent();
     }
+    candleRef.current?.priceScale().applyOptions({ autoScale: true });
     viewReadyRef.current = true;
-
-    if (force || !barsCoverSeconds(data, cfg.seconds)) {
-      /* load-more subscription will fill; nudge if already at left edge */
-    }
   }, [interval]);
 
   applyViewRef.current = applyVisibleRange;
@@ -337,10 +338,16 @@ export function DeskChart({
       // Keep the same candles under the cursor after prepending history.
       if (chart && logical && added > 0) {
         requestAnimationFrame(() => {
-          chart.timeScale().setVisibleLogicalRange({
-            from: logical.from + added,
-            to: logical.to + added,
-          } as LogicalRange);
+          try {
+            chart.timeScale().setVisibleLogicalRange({
+              from: logical.from + added,
+              to: logical.to + added,
+            } as LogicalRange);
+          } catch {
+            /* ignore */
+          }
+          // Re-enable autoscale so candles aren't left crushed after a bad pan.
+          candleRef.current?.priceScale().applyOptions({ autoScale: true });
         });
       }
 
@@ -353,7 +360,20 @@ export function DeskChart({
       }
       return true;
     } catch {
-      /* keep existing series + hasMore; user can pan again */
+      // Failed page — clamp so empty scroll can't crush the price scale.
+      if (chart && logical) {
+        const clamped = clampLogicalRange(logical, barsRef.current.length, {
+          rightPad: 8,
+        });
+        if (clamped) {
+          try {
+            chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
+          } catch {
+            /* ignore */
+          }
+        }
+        candleRef.current?.priceScale().applyOptions({ autoScale: true });
+      }
       return false;
     } finally {
       loadingMoreRef.current = false;
@@ -428,10 +448,15 @@ export function DeskChart({
     if (chartLoading || loadingMore || !bars.length || !hasMore) return;
     const cfg = DESK_RANGES.find((r) => r.id === range);
     if (!cfg || barsCoverSeconds(bars, cfg.seconds)) return;
-    if (autoFillPagesRef.current >= 8) return;
-    if (autoFillFailsRef.current >= 3) return;
+    if (autoFillPagesRef.current >= 10) return;
+    if (autoFillFailsRef.current >= 5) return;
     let cancelled = false;
     (async () => {
+      // Brief pause after a miss so Netlify/Binance can recover before the next page.
+      if (autoFillFailsRef.current > 0) {
+        await new Promise((r) => setTimeout(r, 600 * autoFillFailsRef.current));
+      }
+      if (cancelled) return;
       const ok = await loadOlder();
       if (cancelled) return;
       if (ok) {
@@ -525,6 +550,7 @@ export function DeskChart({
       paneIdx,
     );
     candles.priceScale().applyOptions({
+      autoScale: true,
       scaleMargins: { top: 0.06, bottom: showPressure || showPulse ? 0.1 : 0.14 },
       borderVisible: false,
     });
@@ -680,30 +706,31 @@ export function DeskChart({
     chart.subscribeCrosshairMove(onMove);
 
     const onLogical = (logical: LogicalRange | null) => {
-      if (!logical || loadingMoreRef.current) return;
+      if (!logical) return;
 
       const n = barsRef.current.length;
       if (n > 0) {
-        const minFrom = -0.5;
-        const maxTo = n - 1 + 12;
-        // Clamp zoom-out so the plot never shows a blank left half.
-        if (logical.from < minFrom || logical.to > maxTo + 40) {
-          const span = Math.max(20, logical.to - logical.from);
-          const to = Math.min(maxTo, Math.max(span, logical.to));
-          const from = Math.max(minFrom, to - span);
-          if (from !== logical.from || to !== logical.to) {
-            try {
-              chart.timeScale().setVisibleLogicalRange({ from, to } as LogicalRange);
-            } catch {
-              /* ignore */
-            }
-            return;
+        const clamped = clampLogicalRange(logical, n, {
+          rightPad: 8,
+          minSpan: 20,
+        });
+        if (clamped) {
+          try {
+            chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
+          } catch {
+            /* ignore */
           }
+          candleRef.current?.priceScale().applyOptions({ autoScale: true });
+          // Left-edge clamp used to return before loadOlder — that stranded prod.
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 14) {
+            void loadOlderRef.current();
+          }
+          return;
         }
       }
 
-      if (!hasMoreRef.current) return;
-      if (logical.from < 12) {
+      if (loadingMoreRef.current || !hasMoreRef.current) return;
+      if (logical.from < 14) {
         void loadOlderRef.current();
       }
     };
