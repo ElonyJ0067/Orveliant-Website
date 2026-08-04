@@ -546,7 +546,7 @@ export function PriceChart({
     return () => {
       active = false;
     };
-  }, [id, days, snapToLatest, atLeftEdge]);
+  }, [id, days, snapToLatest]);
 
   // Live tip — skip stables (chart is true USD; Binance USDCUSDT tip would distort it).
   useEffect(() => {
