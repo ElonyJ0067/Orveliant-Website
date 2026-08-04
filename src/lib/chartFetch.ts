@@ -109,6 +109,26 @@ async function fetchChartJsonInner<T extends object>(
   for (let i = 0; i <= retries; i++) {
     try {
       const result = await fetchChartJsonOnce<T>(url, { bust: bust || i > 0 });
+      if (typeof window !== "undefined" && isHistoryUrl(url)) {
+        const payload = result.json as {
+          hasMore?: boolean;
+          retryable?: boolean;
+          series?: unknown[];
+          bars?: unknown[];
+        };
+        let endTime: string | null = null;
+        let pages: string | null = null;
+        try {
+          const parsed = new URL(url, window.location.origin);
+          endTime = parsed.searchParams.get("endTime");
+          pages = parsed.searchParams.get("pages");
+        } catch {
+          /* ignore malformed debug URL parse */
+        }
+        // #region agent log
+        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "history fetch attempt result", data: { path: url.split("?")[0], endTime, pages, attempt: i, retries, bust: Boolean(bust || i > 0), ok: result.ok, status: result.status, retryable: Boolean(payload.retryable), hasMore: payload.hasMore ?? null, seriesLen: Array.isArray(payload.series) ? payload.series.length : null, barsLen: Array.isArray(payload.bars) ? payload.bars.length : null }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+      }
       if (result.ok) return result;
       lastFail = result;
       if (isRetryablePayload(result.status, result.json) && i < retries) {
@@ -118,6 +138,11 @@ async function fetchChartJsonInner<T extends object>(
       }
       return result;
     } catch (err) {
+      if (typeof window !== "undefined" && isHistoryUrl(url)) {
+        // #region agent log
+        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "history fetch threw error", data: { path: url.split("?")[0], attempt: i, retries, bust: Boolean(bust || i > 0), error: err instanceof Error ? err.message : String(err) }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+      }
       lastErr = err;
       if (i < retries) {
         await sleep(100 * (i + 1));
