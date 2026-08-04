@@ -97,6 +97,9 @@ export function IntelligenceDesk() {
   }, []);
 
   useEffect(() => {
+    // Drop the previous coin’s pack immediately so DeskChart can’t paint
+    // BNB levels (~$580) on BTC candles (~$64k) while the next pack loads.
+    setPack(null);
     void loadDesk(id);
   }, [id, loadDesk]);
 

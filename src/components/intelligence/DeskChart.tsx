@@ -570,6 +570,35 @@ export function DeskChart({
         borderVisible: false,
         wickUpColor: "#35c07a",
         wickDownColor: "#e5544b",
+        // Price lines must NOT drive the scale — mismatched coin levels (~$580 on
+        // BTC ~$64k) crush candles to a hairline at the top of a 0–70k axis.
+        autoscaleInfoProvider: () => {
+          const data = barsRef.current;
+          if (!data.length) return null;
+          const logical = chart.timeScale().getVisibleLogicalRange();
+          const from = Math.max(0, Math.floor(logical?.from ?? 0));
+          const to = Math.min(
+            data.length - 1,
+            Math.ceil(logical?.to ?? data.length - 1),
+          );
+          let min = Infinity;
+          let max = -Infinity;
+          for (let i = from; i <= to; i++) {
+            const b = data[i];
+            if (b.l < min) min = b.l;
+            if (b.h > max) max = b.h;
+          }
+          if (!Number.isFinite(min) || !Number.isFinite(max) || max <= 0) {
+            return null;
+          }
+          const pad = Math.max((max - min) * 0.1, max * 0.001);
+          return {
+            priceRange: {
+              minValue: min - pad,
+              maxValue: max + pad,
+            },
+          };
+        },
       },
       paneIdx,
     );
@@ -865,9 +894,20 @@ export function DeskChart({
     anySeries.__ovLines?.forEach((l) => candles.removePriceLine(l));
     anySeries.__ovLines = [];
 
-    if (!pack) return;
+    // Ignore stale pack from a previous coin while klines catch up (causes 0–70k scale).
+    if (!pack || pack.id !== coinId) return;
+
+    const last = barsRef.current[barsRef.current.length - 1];
+    const anchor = last?.c ?? pack.structure.price;
+    if (!(anchor > 0)) return;
+    // Drop levels that can't belong to this market (e.g. BNB ~$580 on BTC ~$64k).
+    const levelOk = (price: number) =>
+      Number.isFinite(price) &&
+      price > 0 &&
+      Math.abs(price - anchor) / anchor < 0.35;
 
     const addLine = (price: number, color: string, title: string, style: 0 | 2 = 2) => {
+      if (!levelOk(price)) return;
       const line = candles.createPriceLine({
         price,
         color,
@@ -915,7 +955,9 @@ export function DeskChart({
         );
       });
     }
-  }, [pack, emphasis, showLevels, showPressure, showPulse, seriesPack.candles.length]);
+
+    candles.priceScale().applyOptions({ autoScale: true });
+  }, [pack, coinId, emphasis, showLevels, showPressure, showPulse, seriesPack.candles.length]);
 
   // Live forming candle — never resets the time scale.
   useEffect(() => {
