@@ -15,7 +15,7 @@ import { fmtPrice } from "@/lib/coins";
 import {
   clampLogicalRange,
   fetchChartJson,
-  historyRequestUrl,
+  warmChartUrl,
 } from "@/lib/chartFetch";
 import { useLivePrices } from "@/lib/useLivePrices";
 import { LivePrice } from "./LivePrice";
@@ -129,6 +129,7 @@ export function PriceChart({
   const lastTimeRef = useRef<Time | null>(null);
   const dataRef = useRef<Point[]>([]);
   const daysRef = useRef("7");
+  const idRef = useRef(id);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const loadOlderRef = useRef<() => Promise<boolean>>(async () => false);
@@ -138,6 +139,8 @@ export function PriceChart({
   const viewReadyRef = useRef(false);
   /** How many bars the selected chip should show (rest is left buffer). */
   const visibleBarsRef = useRef(168);
+  /** Ignore range events while we correct the scale after a history prepend. */
+  const suppressRangeRef = useRef(false);
 
   const [days, setDays] = useState("7");
   const [loading, setLoading] = useState(true);
@@ -158,6 +161,10 @@ export function PriceChart({
   useEffect(() => {
     daysRef.current = days;
   }, [days]);
+
+  useEffect(() => {
+    idRef.current = id;
+  }, [id]);
 
   const snapToLatest = useCallback((data: Point[]) => {
     const chart = chartRef.current;
@@ -195,17 +202,16 @@ export function PriceChart({
     setLoadingMore(true);
     try {
       const oldestSec = pointTimeSec(current[0].time);
-      const url = historyRequestUrl(
+      const url =
         `/api/chart?id=${encodeURIComponent(id)}` +
-          `&days=${encodeURIComponent(daysAtStart)}` +
-          `&endTime=${oldestSec * 1000 - 1}`,
-      );
+        `&days=${encodeURIComponent(daysAtStart)}` +
+        `&endTime=${oldestSec * 1000 - 1}`;
 
       const { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-      }>(url, { retries: 3, bust: true });
+      }>(url, { retries: 3 });
 
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
 
@@ -233,8 +239,18 @@ export function PriceChart({
       dataRef.current = merged;
       hasMoreRef.current = Boolean(json.hasMore);
 
-      // setData + logical shift synchronously (rAF races froze the left edge).
+      if (hasMoreRef.current && merged.length) {
+        warmChartUrl(
+          `/api/chart?id=${encodeURIComponent(id)}` +
+            `&days=${encodeURIComponent(daysAtStart)}` +
+            `&endTime=${pointTimeSec(merged[0].time) * 1000 - 1}`,
+        );
+      }
+
+      // Keep the same candles under the cursor after prepend. Suppress range
+      // handlers so the shift doesn’t retrigger loadOlder mid-gesture.
       if (seriesRef.current) {
+        suppressRangeRef.current = true;
         seriesRef.current.setData(merged);
         if (chart && logical) {
           try {
@@ -246,6 +262,9 @@ export function PriceChart({
             /* ignore */
           }
         }
+        requestAnimationFrame(() => {
+          suppressRangeRef.current = false;
+        });
       }
 
       const s = statsFrom(merged);
@@ -364,48 +383,43 @@ export function PriceChart({
     });
 
     const onLogical = (logical: LogicalRange | null) => {
-      if (!logical || !viewReadyRef.current) return;
+      if (!logical || !viewReadyRef.current || suppressRangeRef.current) return;
       const n = dataRef.current.length;
       if (n > 0) {
-        const clamped = clampLogicalRange(logical, n, {
-          rightPad: 4,
-          allowLeftPull: hasMoreRef.current,
-        });
+        // Soft clamp only for extreme empty zoom — never fight normal pans.
+        const clamped = clampLogicalRange(logical, n, { rightPad: 4 });
         if (clamped) {
+          suppressRangeRef.current = true;
           try {
             chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
           } catch {
             /* ignore */
           }
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 40) {
-            void loadOlderRef.current();
-          }
-          return;
+          requestAnimationFrame(() => {
+            suppressRangeRef.current = false;
+          });
         }
       }
+      // Load only at the true left edge; warm earlier for a smooth handoff.
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 40) {
+      if (logical.from < 8) {
         void loadOlderRef.current();
+      } else if (logical.from < 80 && dataRef.current.length) {
+        const oldestSec = pointTimeSec(dataRef.current[0].time);
+        warmChartUrl(
+          `/api/chart?id=${encodeURIComponent(idRef.current)}` +
+            `&days=${encodeURIComponent(daysRef.current)}` +
+            `&endTime=${oldestSec * 1000 - 1}`,
+        );
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
-
-    const host = containerRef.current;
-    const onWheel = () => {
-      if (!viewReadyRef.current || !hasMoreRef.current || loadingMoreRef.current) return;
-      const logical = chart.timeScale().getVisibleLogicalRange();
-      if (logical && logical.from < 40) {
-        void loadOlderRef.current();
-      }
-    };
-    host.addEventListener("wheel", onWheel, { passive: true });
 
     chartRef.current = chart;
     seriesRef.current = series;
 
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
-      host.removeEventListener("wheel", onWheel);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;

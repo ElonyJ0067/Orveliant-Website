@@ -20,7 +20,7 @@ import { COINS, fmtPrice } from "@/lib/coins";
 import {
   clampLogicalRange,
   fetchChartJson,
-  historyRequestUrl,
+  warmChartUrl,
 } from "@/lib/chartFetch";
 import {
   DESK_INTERVALS,
@@ -153,10 +153,8 @@ async function fetchDeskBars(
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
 
-  const raw = `/api/desk-klines?${params}`;
-  // History pages always bust — duplicate cached windows were killing scroll-back.
-  const url =
-    opts?.endTimeMs != null ? historyRequestUrl(raw) : raw;
+  // Stable URL so warm cache can satisfy scroll-back without a hitch.
+  const url = `/api/desk-klines?${params}`;
   const { ok, json } = await fetchChartJson<{
     bars?: Bar[];
     hasMore?: boolean;
@@ -164,7 +162,8 @@ async function fetchDeskBars(
     error?: string;
   }>(url, {
     retries: opts?.endTimeMs != null ? 4 : 2,
-    bust: opts?.endTimeMs != null,
+    // Prefer warm cache for history; network uses no-store for endTime URLs.
+    bust: false,
   });
 
   if (!ok || json.retryable) {
@@ -214,6 +213,8 @@ export function DeskChart({
   const viewReadyRef = useRef(false);
   /** Bars length last applied to the series — detects prepends for logical shift. */
   const appliedLenRef = useRef(0);
+  /** Ignore range events while correcting scale after a history prepend. */
+  const suppressRangeRef = useRef(false);
   const rangeRef = useRef<DeskRange>(defaultRangeForInterval(interval));
   const applyViewRef = useRef<(rangeId: DeskRange, force?: boolean) => void>(() => {});
 
@@ -331,6 +332,15 @@ export function DeskChart({
       if (added <= 0) {
         // Duplicate/overlap page — keep hasMore so the user can retry; do not hard-stop.
         return false;
+      }
+
+      // Warm the following page (stable URL) so the next edge hit is instant.
+      if (more && merged.length) {
+        warmChartUrl(
+          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+            `&interval=${interval}&limit=${HISTORY_PAGE}` +
+            `&endTime=${merged[0].t * 1000 - 1}`,
+        );
       }
 
       // State update only — series setData + logical shift happen together in the
@@ -687,46 +697,43 @@ export function DeskChart({
     chart.subscribeCrosshairMove(onMove);
 
     const onLogical = (logical: LogicalRange | null) => {
-      if (!logical) return;
+      if (!logical || suppressRangeRef.current) return;
 
       const n = barsRef.current.length;
       if (n > 0) {
+        // Soft clamp only for extreme empty zoom — never fight normal pans.
         const clamped = clampLogicalRange(logical, n, {
           rightPad: 8,
           minSpan: 20,
-          allowLeftPull: hasMoreRef.current,
         });
         if (clamped) {
+          suppressRangeRef.current = true;
           try {
             chart.timeScale().setVisibleLogicalRange(clamped as LogicalRange);
           } catch {
             /* ignore */
           }
-          candleRef.current?.priceScale().applyOptions({ autoScale: true });
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 40) {
-            void loadOlderRef.current();
-          }
-          return;
+          requestAnimationFrame(() => {
+            suppressRangeRef.current = false;
+          });
         }
       }
 
+      // Load only at the true left edge. Earlier (from<40) + shift felt sticky.
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 40) {
+      if (logical.from < 8) {
         void loadOlderRef.current();
+      } else if (logical.from < 80 && barsRef.current.length) {
+        // Background warm so the edge hit doesn’t hitch.
+        const oldest = barsRef.current[0].t;
+        warmChartUrl(
+          `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
+            `&interval=${interval}&limit=${HISTORY_PAGE}` +
+            `&endTime=${oldest * 1000 - 1}`,
+        );
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
-
-    // Wheel at/near the left edge must fetch even when the library emits no pan.
-    const host = containerRef.current;
-    const onWheel = () => {
-      if (!hasMoreRef.current || loadingMoreRef.current) return;
-      const logical = chart.timeScale().getVisibleLogicalRange();
-      if (logical && logical.from < 40) {
-        void loadOlderRef.current();
-      }
-    };
-    host.addEventListener("wheel", onWheel, { passive: true });
 
     // Re-paint current bars after pane recreate.
     if (barsRef.current.length) {
@@ -753,7 +760,6 @@ export function DeskChart({
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
       chart.unsubscribeCrosshairMove(onMove);
-      host.removeEventListener("wheel", onWheel);
       if (resizeTimer) clearTimeout(resizeTimer);
       ro.disconnect();
       chart.remove();
@@ -763,7 +769,7 @@ export function DeskChart({
       pressureRef.current = null;
       pulseRef.current = null;
     };
-  }, [showPressure, showPulse]);
+  }, [showPressure, showPulse, coinId, interval]);
 
   // Push series data. On prepend, shift the logical range in the same turn as
   // setData — rAF/effect races were freezing the left edge after one buffer.
@@ -800,6 +806,7 @@ export function DeskChart({
       : null;
 
     if (added > 0 && logical) {
+      suppressRangeRef.current = true;
       try {
         chart.timeScale().setVisibleLogicalRange({
           from: logical.from + added,
@@ -809,6 +816,9 @@ export function DeskChart({
         /* ignore */
       }
       candleRef.current?.priceScale().applyOptions({ autoScale: true });
+      requestAnimationFrame(() => {
+        suppressRangeRef.current = false;
+      });
       return;
     }
 

@@ -175,38 +175,39 @@ export function warmChartUrl(url: string): void {
 }
 
 /**
- * Clamp a logical range so the plot never shows a blank half when history
- * hasn’t loaded (or failed). Returns null when no clamp is needed.
- *
- * When `allowLeftPull` is set, a small negative `from` is kept so the user can
- * pan past bar 0 — that range-change is what triggers the next history page.
+ * Soft clamp — only correct extreme empty zoom/pan. Do NOT call this on every
+ * small pan (that fights the gesture and feels stiff).
  */
 export function clampLogicalRange(
   logical: { from: number; to: number },
   barCount: number,
-  opts?: { rightPad?: number; minSpan?: number; allowLeftPull?: boolean },
+  opts?: { rightPad?: number; minSpan?: number },
 ): { from: number; to: number } | null {
   if (barCount <= 0) return null;
   const rightPad = opts?.rightPad ?? 8;
   const minSpan = opts?.minSpan ?? 16;
-  const minFrom = opts?.allowLeftPull ? -24 : -0.35;
   const maxTo = barCount - 1 + rightPad;
+  // Generous slack so panning feels native; only stop huge blank regions.
+  const minFrom = -40;
   let from = logical.from;
   let to = logical.to;
   let span = Math.max(minSpan, to - from);
 
-  if (from < minFrom) {
+  const extremeLeft = from < minFrom;
+  const extremeRight = to > maxTo + 80;
+  const extremeZoom = span > barCount + rightPad + 80;
+  if (!extremeLeft && !extremeRight && !extremeZoom) return null;
+
+  if (extremeLeft) {
     from = minFrom;
     to = from + span;
   }
-  if (to > maxTo) {
+  if (to > maxTo + 80) {
     to = maxTo;
     from = Math.max(minFrom, to - span);
   }
-  span = Math.max(minSpan, to - from);
-  // If still wider than all data + pad, fit to content.
-  if (span > barCount + rightPad + 2) {
-    from = opts?.allowLeftPull ? Math.min(minFrom, 0) : 0;
+  if (to - from > barCount + rightPad + 80) {
+    from = 0;
     to = maxTo;
   }
 
