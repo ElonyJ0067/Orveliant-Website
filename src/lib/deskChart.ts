@@ -19,15 +19,15 @@ export const DESK_RANGES = [
 export type DeskRange = (typeof DESK_RANGES)[number]["id"];
 
 /**
- * First paint targets — sized to cover each TF’s default range in ONE request
- * (plus buffer) so production doesn’t wait on chained history pages.
- *   15m → 1D ≈ 96+48 · 1h → 5D ≈ 120+48 · 4h → 1M ≈ 180+48 · 1d → 3M ≈ 90+48
+ * First paint targets — default visible range + large left buffer so pan-back
+ * works immediately on Netlify without waiting on endTime pagination.
+ *   15m → 1D≈96 · 1h → 5D≈120 · 4h → 1M≈180 · 1d → 3M≈90  (+ ~400 buffer)
  */
 export const INITIAL_LIMIT: Record<DeskInterval, number> = {
-  "15m": 160,
-  "1h": 200,
-  "4h": 260,
-  "1d": 160,
+  "15m": 520,
+  "1h": 560,
+  "4h": 620,
+  "1d": 520,
 };
 
 /** Binance max kline page — fewer Netlify round-trips when scrolling back. */
@@ -39,7 +39,8 @@ export function initialLimitFor(interval: DeskInterval, range?: DeskRange): numb
   const rangeId = range ?? defaultRangeForInterval(interval);
   const span = DESK_RANGES.find((r) => r.id === rangeId)?.seconds ?? 5 * 86_400;
   const sec = intervalSeconds(interval);
-  return Math.min(1000, Math.max(INITIAL_LIMIT[interval], Math.ceil(span / sec) + 64));
+  // Visible bars for the chip + ~400 older bars as a scroll buffer.
+  return Math.min(1000, Math.max(INITIAL_LIMIT[interval], Math.ceil(span / sec) + 400));
 }
 
 export function defaultRangeForInterval(interval: DeskInterval): DeskRange {

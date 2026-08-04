@@ -30,6 +30,17 @@ const RANGES = [
   { label: "ALL", days: "max" },
 ] as const;
 
+/** Bars shown for each range chip (server may send extra left buffer). */
+const VISIBLE_BARS: Record<string, number> = {
+  "1h": 60,
+  "1": 288,
+  "7": 168,
+  "30": 180,
+  "90": 180,
+  "365": 365,
+  max: 500,
+};
+
 const STABLES = new Set(["tether", "usd-coin"]);
 
 const UP = { line: "#35c07a", top: "rgba(53,192,122,0.28)", bottom: "rgba(53,192,122,0.02)" };
@@ -125,6 +136,8 @@ export function PriceChart({
   const fetchGenRef = useRef(0);
   /** Block left-edge load-more until the new range has painted “now”. */
   const viewReadyRef = useRef(false);
+  /** How many bars the selected chip should show (rest is left buffer). */
+  const visibleBarsRef = useRef(168);
 
   const [days, setDays] = useState("7");
   const [loading, setLoading] = useState(true);
@@ -150,21 +163,19 @@ export function PriceChart({
     const chart = chartRef.current;
     if (!chart || !data.length) return;
     const lastIdx = data.length - 1;
+    const visible = Math.min(
+      data.length,
+      visibleBarsRef.current || VISIBLE_BARS[daysRef.current] || 168,
+    );
+    const from = Math.max(0, lastIdx - visible + 1);
     try {
       chart.timeScale().setVisibleLogicalRange({
-        from: 0,
+        from,
         to: lastIdx + 4,
       } as LogicalRange);
     } catch {
       chart.timeScale().fitContent();
     }
-  }, []);
-
-  /** True when the left edge is near the oldest loaded bar (scroll won't move further). */
-  const atLeftEdge = useCallback(() => {
-    const logical = chartRef.current?.timeScale().getVisibleLogicalRange();
-    if (!logical) return false;
-    return logical.from < 16;
   }, []);
 
   const loadOlder = useCallback(async (): Promise<boolean> => {
@@ -189,11 +200,13 @@ export function PriceChart({
         `&days=${encodeURIComponent(daysAtStart)}` +
         `&endTime=${oldestSec * 1000 - 1}`;
 
-      const { ok, json } = await fetchChartJson<{
+      let { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-      }>(url, { retries: 4 });
+        oldest?: number;
+        newest?: number;
+      }>(url, { retries: 3 });
 
       // Range/coin changed while we were fetching — drop this page.
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
@@ -215,7 +228,7 @@ export function PriceChart({
         return false;
       }
 
-      const older: Point[] = (json.series ?? []).map(
+      let older: Point[] = (json.series ?? []).map(
         (d: { time: number; value: number }) => ({
           time: d.time as Time,
           value: d.value,
@@ -227,12 +240,38 @@ export function PriceChart({
         return false;
       }
 
-      const beforeLen = current.length;
-      const merged = mergePoints(older, current);
-      const added = merged.length - beforeLen;
+      // Duplicate “recent” window (CDN/cache bug) — bust once, don’t kill hasMore.
+      let beforeLen = current.length;
+      let merged = mergePoints(older, current);
+      let added = merged.length - beforeLen;
       if (added <= 0) {
-        hasMoreRef.current = false;
-        return false;
+        const olderNewest = pointTimeSec(older[older.length - 1].time);
+        if (olderNewest >= oldestSec) {
+          const busted = await fetchChartJson<{
+            series?: { time: number; value: number }[];
+            hasMore?: boolean;
+            retryable?: boolean;
+          }>(url, { bust: true, retries: 2 });
+          if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) {
+            return false;
+          }
+          if (busted.ok && !busted.json.retryable) {
+            older = (busted.json.series ?? []).map(
+              (d: { time: number; value: number }) => ({
+                time: d.time as Time,
+                value: d.value,
+              }),
+            );
+            merged = mergePoints(older, current);
+            added = merged.length - beforeLen;
+            json = busted.json;
+          }
+        }
+        if (added <= 0) {
+          // Truly nothing new older than what we have.
+          hasMoreRef.current = false;
+          return false;
+        }
       }
 
       dataRef.current = merged;
@@ -245,17 +284,22 @@ export function PriceChart({
       setChartLast(s.chartLast);
 
       if (chart && logical && added > 0) {
+        // Double rAF: setData can reset the time scale before the first frame.
         requestAnimationFrame(() => {
-          if (gen !== fetchGenRef.current) return;
-          // Keep the same candles on screen; left side becomes a scrollable buffer.
-          chart.timeScale().setVisibleLogicalRange({
-            from: logical.from + added,
-            to: logical.to + added,
-          } as LogicalRange);
+          requestAnimationFrame(() => {
+            if (gen !== fetchGenRef.current) return;
+            try {
+              chart.timeScale().setVisibleLogicalRange({
+                from: logical.from + added,
+                to: logical.to + added,
+              } as LogicalRange);
+            } catch {
+              /* ignore */
+            }
+          });
         });
       }
 
-      // Prefetch the next older page so the following scroll feels instant.
       if (hasMoreRef.current && merged.length) {
         const nextOldest = pointTimeSec(merged[0].time);
         warmChartUrl(
@@ -266,7 +310,6 @@ export function PriceChart({
       }
       return true;
     } catch {
-      /* keep series + hasMore; user can pan again */
       return false;
     } finally {
       if (gen === fetchGenRef.current) {
@@ -454,7 +497,8 @@ export function PriceChart({
       series?: { time: number; value: number }[];
       hasMore?: boolean;
       live?: boolean;
-    }>(url, { retries: 2 })
+      visible?: number;
+    }>(url, { retries: 2, bust: true })
       .then(({ json }) => {
         if (!active || gen !== fetchGenRef.current || !seriesRef.current) return;
         const data: Point[] = (json.series ?? []).map(
@@ -463,6 +507,10 @@ export function PriceChart({
             value: d.value,
           }),
         );
+        visibleBarsRef.current =
+          typeof json.visible === "number" && json.visible > 0
+            ? json.visible
+            : VISIBLE_BARS[days] ?? 168;
         dataRef.current = data;
         hasMoreRef.current = Boolean(json.hasMore);
         seriesRef.current.setData(data);
@@ -474,23 +522,18 @@ export function PriceChart({
         setHigh(s.high);
         setLow(s.low);
 
-        // Always land on the latest window for this range chip.
+        // Show the chip window (latest N bars); older bars stay as a left buffer.
         requestAnimationFrame(() => {
           if (gen !== fetchGenRef.current) return;
           snapToLatest(data);
           viewReadyRef.current = true;
-          // Initial view is from=0 → further pan emits no range change. Apply at
-          // least one older page into a left buffer so scroll-back can move.
-          if (json.hasMore && data.length && !STABLES.has(id)) {
+          // If server buffer is thin, pull one more page in the background.
+          const leftPad = data.length - (visibleBarsRef.current || 0);
+          if (json.hasMore && leftPad < 80 && data.length && !STABLES.has(id)) {
             window.setTimeout(() => {
               if (gen !== fetchGenRef.current) return;
-              void loadOlderRef.current().then((ok) => {
-                // Second page when still glued to the left edge.
-                if (ok && gen === fetchGenRef.current && atLeftEdge()) {
-                  void loadOlderRef.current();
-                }
-              });
-            }, 80);
+              void loadOlderRef.current();
+            }, 100);
           }
         });
         setLive(Boolean(json.live));

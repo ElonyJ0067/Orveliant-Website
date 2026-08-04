@@ -68,9 +68,12 @@ function isRetryablePayload(status: number, json: unknown): boolean {
 
 async function fetchChartJsonOnce<T extends object>(
   url: string,
+  opts?: { bust?: boolean },
 ): Promise<ChartJsonResult<T>> {
   const res = await fetch(url, {
     headers: { accept: "application/json" },
+    // History + bust must not reuse a poisoned CDN/browser entry.
+    cache: opts?.bust || isHistoryUrl(url) ? "no-store" : "default",
   });
   const json = (await res.json()) as T;
   // Cache only successful payloads — never freeze a transient 503 into memory.
@@ -83,13 +86,14 @@ async function fetchChartJsonOnce<T extends object>(
 async function fetchChartJsonInner<T extends object>(
   url: string,
   retries: number,
+  bust?: boolean,
 ): Promise<ChartJsonResult<T>> {
   let lastErr: unknown;
   let lastFail: ChartJsonResult<T> | null = null;
 
   for (let i = 0; i <= retries; i++) {
     try {
-      const result = await fetchChartJsonOnce<T>(url);
+      const result = await fetchChartJsonOnce<T>(url, { bust: bust || i > 0 });
       if (result.ok) return result;
       lastFail = result;
       if (isRetryablePayload(result.status, result.json) && i < retries) {
@@ -123,7 +127,9 @@ export async function fetchChartJson<T extends object>(
   url: string,
   opts?: { bust?: boolean; retries?: number },
 ): Promise<ChartJsonResult<T>> {
-  if (!opts?.bust) {
+  if (opts?.bust) {
+    mem.delete(url);
+  } else {
     const cached = peekChartCache<T>(url);
     if (cached) {
       const hit = mem.get(url)!;
@@ -137,18 +143,21 @@ export async function fetchChartJson<T extends object>(
   }
 
   const existing = inflight.get(url);
-  if (existing) {
+  if (existing && !opts?.bust) {
     return existing as Promise<ChartJsonResult<T>>;
   }
 
   const retries = opts?.retries ?? (isHistoryUrl(url) ? 3 : 1);
+  const bust = Boolean(opts?.bust);
 
   const exec = async (): Promise<ChartJsonResult<T>> => {
     try {
       if (isHistoryUrl(url)) {
-        return await runHistoryQueued(() => fetchChartJsonInner<T>(url, retries));
+        return await runHistoryQueued(() =>
+          fetchChartJsonInner<T>(url, retries, bust),
+        );
       }
-      return await fetchChartJsonInner<T>(url, retries);
+      return await fetchChartJsonInner<T>(url, retries, bust);
     } finally {
       inflight.delete(url);
     }

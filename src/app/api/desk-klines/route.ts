@@ -9,8 +9,7 @@ import {
 } from "@/lib/deskChart";
 import type { Bar } from "@/lib/intelligence/types";
 
-/** Short CDN/edge cache for recent-history requests (no endTime pagination). */
-export const revalidate = 30;
+export const dynamic = "force-dynamic";
 
 const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "15m": "15m",
@@ -19,10 +18,9 @@ const BINANCE_INTERVAL: Record<DeskInterval, string> = {
   "1d": "1d",
 };
 
-const HIST_CACHE =
-  "public, s-maxage=3600, stale-while-revalidate=86400";
 const FRESH_CACHE =
   "public, s-maxage=30, stale-while-revalidate=120";
+const NO_STORE = "private, no-store, max-age=0, must-revalidate";
 
 function parseKlines(rows: unknown[][]): Bar[] {
   return rows
@@ -80,10 +78,8 @@ export async function GET(request: Request) {
       path += `&endTime=${Math.floor(endTime)}`;
     }
 
-    // Historical endTime windows are immutable — cache aggressively.
-    const res = await binanceGet(path, {
-      next: { revalidate: paginating ? 3600 : 30 },
-    });
+    // Never CDN-cache paginated windows — duplicate recent pages kill scroll-back.
+    const res = await binanceGet(path, { cache: "no-store" });
     if (!res.ok) {
       return NextResponse.json(
         {
@@ -92,13 +88,12 @@ export async function GET(request: Request) {
           hasMore: true,
           retryable: true,
         },
-        { status: 503, headers: { "Cache-Control": "no-store" } },
+        { status: 503, headers: { "Cache-Control": NO_STORE } },
       );
     }
 
     const rows: unknown[][] = await res.json();
     const bars = parseKlines(rows);
-    // Binance returns up to `limit`; fewer bars means no older history left.
     const hasMore = bars.length >= limit;
 
     return NextResponse.json(
@@ -110,10 +105,13 @@ export async function GET(request: Request) {
         hasMore,
         live: true,
         retryable: false,
+        oldest: bars[0]?.t ?? 0,
+        newest: bars[bars.length - 1]?.t ?? 0,
       },
       {
         headers: {
-          "Cache-Control": paginating ? HIST_CACHE : FRESH_CACHE,
+          "Cache-Control": paginating ? NO_STORE : FRESH_CACHE,
+          Vary: "Accept-Encoding",
         },
       },
     );
@@ -126,7 +124,7 @@ export async function GET(request: Request) {
         hasMore: true,
         retryable: true,
       },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
+      { status: 503, headers: { "Cache-Control": NO_STORE } },
     );
   }
 }

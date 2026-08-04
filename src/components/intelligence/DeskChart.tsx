@@ -310,7 +310,7 @@ export function DeskChart({
     setLoadingMore(true);
     try {
       const oldest = current[0].t;
-      const { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
+      let { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
         endTimeMs: oldest * 1000 - 1,
         limit: HISTORY_PAGE,
       });
@@ -321,13 +321,35 @@ export function DeskChart({
       }
 
       const beforeLen = current.length;
-      const merged = mergeBars(older, current);
-      const added = merged.length - beforeLen;
-      // All returned bars already known → end of exchange history for this window.
+      let merged = mergeBars(older, current);
+      let added = merged.length - beforeLen;
+      // Duplicate recent window (bad cache) — retry once with cache bust.
       if (added <= 0) {
-        setHasMore(false);
-        hasMoreRef.current = false;
-        return false;
+        const olderNewest = older[older.length - 1]?.t ?? 0;
+        if (olderNewest >= oldest) {
+          const params = new URLSearchParams({
+            id: coinId,
+            interval,
+            limit: String(HISTORY_PAGE),
+            endTime: String(oldest * 1000 - 1),
+          });
+          const busted = await fetchChartJson<{
+            bars?: Bar[];
+            hasMore?: boolean;
+            retryable?: boolean;
+          }>(`/api/desk-klines?${params}`, { bust: true, retries: 2 });
+          if (busted.ok && !busted.json.retryable) {
+            older = (busted.json.bars ?? []) as Bar[];
+            more = Boolean(busted.json.hasMore);
+            merged = mergeBars(older, current);
+            added = merged.length - beforeLen;
+          }
+        }
+        if (added <= 0) {
+          setHasMore(false);
+          hasMoreRef.current = false;
+          return false;
+        }
       }
 
       setBars(merged);
