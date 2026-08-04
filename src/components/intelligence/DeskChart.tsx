@@ -75,6 +75,17 @@ function chartHeightForWidth(w: number): number {
   return CHART_HEIGHT.mobile;
 }
 
+/**
+ * Startup history target so long left-pans feel immediate on slow deployments.
+ * Local already feels instant; Netlify needs a deeper preloaded buffer.
+ */
+function startupBarsTarget(interval: DeskInterval): number {
+  if (interval === "15m") return 9_000;
+  if (interval === "1h") return 7_000;
+  if (interval === "4h") return 5_000;
+  return 3_500;
+}
+
 /** Short axis titles so price-scale labels never clip. */
 function axisLabel(label: string): string {
   if (label === "pW-POC" || label === "WPOC") return "WPOC";
@@ -148,7 +159,7 @@ function toSeries(bars: Bar[]) {
 async function fetchDeskBars(
   coinId: string,
   interval: DeskInterval,
-  opts?: { endTimeMs?: number; limit?: number },
+  opts?: { endTimeMs?: number; limit?: number; pages?: number },
 ): Promise<{ bars: Bar[]; hasMore: boolean; retryable: boolean }> {
   const params = new URLSearchParams({
     id: coinId,
@@ -156,8 +167,9 @@ async function fetchDeskBars(
     limit: String(opts?.limit ?? INITIAL_LIMIT[interval]),
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
-  // 3 Binance pages per Netlify RTT (~3000 bars) — matches local scroll depth.
-  params.set("pages", "3");
+  // Deeper first paint on Netlify; paginated loads keep 3-page chunks.
+  const pages = opts?.pages ?? (opts?.endTimeMs != null ? 3 : 4);
+  params.set("pages", String(pages));
 
   // Stable URL so warm cache can satisfy scroll-back without a hitch.
   const url = `/api/desk-klines?${params}`;
@@ -214,6 +226,7 @@ export function DeskChart({
   const pulseRef = useRef<ISeriesApi<"Line"> | null>(null);
   const lastBarRef = useRef<(Candle & { volume: number }) | null>(null);
   const barsRef = useRef<Bar[]>([]);
+  const fetchGenRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const viewReadyRef = useRef(false);
@@ -317,6 +330,7 @@ export function DeskChart({
     if (loadingMoreRef.current || !hasMoreRef.current) return false;
     const current = barsRef.current;
     if (!current.length) return false;
+    const gen = fetchGenRef.current;
 
     loadingMoreRef.current = true;
     setLoadingMore(true);
@@ -329,6 +343,12 @@ export function DeskChart({
         endTimeMs: oldest * 1000 - 1,
         limit: HISTORY_PAGE,
       });
+      if (gen !== fetchGenRef.current) {
+        // #region agent log
+        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H5", location: "src/components/intelligence/DeskChart.tsx:loadOlder", message: "desk stale loadOlder dropped after fetch", data: { coinId, interval, oldGen: gen, currentGen: fetchGenRef.current }, timestamp: Date.now() }) }).catch(() => {});
+        // #endregion
+        return false;
+      }
 
       // Only a truly empty page means exchange history ended.
       if (!older.length) {
@@ -349,6 +369,7 @@ export function DeskChart({
           hasMore?: boolean;
           retryable?: boolean;
         }>(bustUrl, { bust: true, retries: 2 });
+        if (gen !== fetchGenRef.current) return false;
         if (busted.ok && !busted.json.retryable) {
           older = (busted.json.bars ?? []) as Bar[];
           more = Boolean(busted.json.hasMore);
@@ -359,6 +380,7 @@ export function DeskChart({
         // #endregion
         if (added <= 0) return false;
       }
+      if (gen !== fetchGenRef.current) return false;
 
       // Warm the following page (stable URL) so the next edge hit is instant.
       if (more && merged.length) {
@@ -382,8 +404,10 @@ export function DeskChart({
     } catch {
       return false;
     } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
+      if (gen === fetchGenRef.current) {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
     }
   }, [coinId, interval]);
 
@@ -415,12 +439,15 @@ export function DeskChart({
   // Initial / interval / coin history load.
   useEffect(() => {
     let cancelled = false;
+    const gen = ++fetchGenRef.current;
     viewReadyRef.current = false;
     autoFillPagesRef.current = 0;
     autoFillFailsRef.current = 0;
     appliedLenRef.current = 0;
+    loadingMoreRef.current = false;
     setChartLoading(true);
     setChartError("");
+    setLoadingMore(false);
     setBars([]);
     setHasMore(true);
     barsRef.current = [];
@@ -434,8 +461,9 @@ export function DeskChart({
       try {
         const { bars: next, hasMore: more } = await fetchDeskBars(coinId, interval, {
           limit: initialLimitFor(interval, nextDefault),
+          pages: 4,
         });
-        if (cancelled) return;
+        if (cancelled || gen !== fetchGenRef.current) return;
         if (!next.length) throw new Error("No chart history returned");
         // #region agent log
         fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/components/intelligence/DeskChart.tsx:initialLoad", message: "desk initial response", data: { coinId, interval, barsLen: next.length, hasMore: more }, timestamp: Date.now() }) }).catch(() => {});
@@ -445,11 +473,11 @@ export function DeskChart({
         barsRef.current = next;
         hasMoreRef.current = more;
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && gen === fetchGenRef.current) {
           setChartError(err instanceof Error ? err.message : "Failed to load chart");
         }
       } finally {
-        if (!cancelled) setChartLoading(false);
+        if (!cancelled && gen === fetchGenRef.current) setChartLoading(false);
       }
     })();
 
@@ -467,11 +495,7 @@ export function DeskChart({
     if (autoFillFailsRef.current >= 4) return;
     let cancelled = false;
     (async () => {
-      if (autoFillFailsRef.current > 0) {
-        await new Promise((r) => setTimeout(r, 500 * autoFillFailsRef.current));
-      }
-      if (cancelled) return;
-      const ok = await loadOlder();
+      const ok = await loadOlderRef.current();
       if (cancelled) return;
       if (ok) {
         autoFillPagesRef.current += 1;
@@ -869,24 +893,34 @@ export function DeskChart({
     if (!viewReadyRef.current) {
       requestAnimationFrame(() => {
         applyVisibleRange(rangeRef.current, true);
-        // One extra multi-page deepen (~3000 bars) after first paint.
+        // Deepen buffer after first paint until startup target is covered.
         if (hasMoreRef.current) {
+          const targetBars = startupBarsTarget(interval);
+          const genAtStart = fetchGenRef.current;
           const deepen = async () => {
-            await loadOlderRef.current();
+            let rounds = 0;
+            while (
+              genAtStart === fetchGenRef.current &&
+              hasMoreRef.current &&
+              barsRef.current.length < targetBars &&
+              rounds < 4
+            ) {
+              const ok = await loadOlderRef.current();
+              if (!ok) break;
+              rounds += 1;
+            }
           };
           if (typeof requestIdleCallback === "function") {
             requestIdleCallback(() => {
               void deepen();
-            }, { timeout: 500 });
+            }, { timeout: 350 });
           } else {
-            window.setTimeout(() => {
-              void deepen();
-            }, 200);
+            void deepen();
           }
         }
       });
     }
-  }, [seriesPack, bars, applyVisibleRange]);
+  }, [seriesPack, bars, applyVisibleRange, interval]);
 
   // Structure / magnet / absorption levels from the 1h intelligence pack.
   useEffect(() => {
