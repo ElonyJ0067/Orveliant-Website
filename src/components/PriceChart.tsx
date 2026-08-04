@@ -209,13 +209,13 @@ export function PriceChart({
       const url =
         `/api/chart?id=${encodeURIComponent(id)}` +
         `&days=${encodeURIComponent(daysAtStart)}` +
-        `&endTime=${oldestSec * 1000 - 1}`;
+        `&endTime=${oldestSec * 1000 - 1}&pages=3`;
 
       let { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
         retryable?: boolean;
-      }>(url, { retries: 5 });
+      }>(url, { retries: 4 });
 
       if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
 
@@ -268,7 +268,7 @@ export function PriceChart({
         warmChartUrl(
           `/api/chart?id=${encodeURIComponent(id)}` +
             `&days=${encodeURIComponent(daysAtStart)}` +
-            `&endTime=${pointTimeSec(merged[0].time) * 1000 - 1}`,
+            `&endTime=${pointTimeSec(merged[0].time) * 1000 - 1}&pages=3`,
         );
       }
 
@@ -326,7 +326,7 @@ export function PriceChart({
         warmChartUrl(
           `/api/chart?id=${encodeURIComponent(idRef.current)}` +
             `&days=${encodeURIComponent(daysRef.current)}` +
-            `&endTime=${oldestSec * 1000 - 1}`,
+            `&endTime=${oldestSec * 1000 - 1}&pages=3`,
         );
       },
     });
@@ -490,7 +490,9 @@ export function PriceChart({
     // Clear immediately so the old scrolled view can’t linger on a new range.
     seriesRef.current?.setData([]);
 
-    const url = `/api/chart?id=${encodeURIComponent(id)}&days=${encodeURIComponent(days)}`;
+    const url =
+      `/api/chart?id=${encodeURIComponent(id)}` +
+      `&days=${encodeURIComponent(days)}&pages=3`;
     fetchChartJson<{
       series?: { time: number; value: number }[];
       hasMore?: boolean;
@@ -526,19 +528,19 @@ export function PriceChart({
           snapToLatest(data);
           viewReadyRef.current = true;
           if (json.hasMore && data.length && !STABLES.has(id)) {
-            // Two quiet pages after paint ≈ seamless pan for a long stretch.
-            const deepen = () => {
+            // One extra multi-page deepen (~3000 more bars) after first paint.
+            const deepen = async () => {
               if (gen !== fetchGenRef.current) return;
-              void loadOlderRef.current().then((ok) => {
-                if (ok && gen === fetchGenRef.current) {
-                  void loadOlderRef.current();
-                }
-              });
+              await loadOlderRef.current();
             };
             if (typeof requestIdleCallback === "function") {
-              requestIdleCallback(deepen, { timeout: 900 });
+              requestIdleCallback(() => {
+                void deepen();
+              }, { timeout: 500 });
             } else {
-              window.setTimeout(deepen, 350);
+              window.setTimeout(() => {
+                void deepen();
+              }, 200);
             }
           }
         });

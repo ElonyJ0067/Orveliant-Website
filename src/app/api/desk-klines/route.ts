@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { binanceGet } from "@/lib/binance";
+import {
+  fetchBinanceKlinePages,
+  parsePagesParam,
+} from "@/lib/binanceKlines";
 import { COINS } from "@/lib/coins";
 import {
   HISTORY_PAGE,
@@ -49,6 +52,7 @@ export async function GET(request: Request) {
   const intervalParam = searchParams.get("interval") ?? "1h";
   const endTimeParam = searchParams.get("endTime");
   const limitParam = searchParams.get("limit");
+  const pages = parsePagesParam(searchParams.get("pages") ?? "3");
 
   if (!isDeskInterval(intervalParam)) {
     return NextResponse.json({ error: "Unsupported interval." }, { status: 400 });
@@ -71,16 +75,16 @@ export async function GET(request: Request) {
   const paginating = Number.isFinite(endTime) && endTime > 0;
 
   try {
-    let path =
-      `/api/v3/klines?symbol=${coin.binance}` +
-      `&interval=${BINANCE_INTERVAL[intervalParam]}&limit=${limit}`;
-    if (paginating) {
-      path += `&endTime=${Math.floor(endTime)}`;
-    }
+    const { rows, hasMore } = await fetchBinanceKlinePages({
+      symbol: coin.binance,
+      interval: BINANCE_INTERVAL[intervalParam],
+      limit,
+      endTimeMs: paginating ? Math.floor(endTime) : undefined,
+      pages,
+    });
 
-    // Never CDN-cache paginated windows — duplicate recent pages kill scroll-back.
-    const res = await binanceGet(path, { cache: "no-store" });
-    if (!res.ok) {
+    const bars = parseKlines(rows);
+    if (!bars.length) {
       return NextResponse.json(
         {
           error: "Unable to load desk chart history right now.",
@@ -91,10 +95,6 @@ export async function GET(request: Request) {
         { status: 503, headers: { "Cache-Control": NO_STORE } },
       );
     }
-
-    const rows: unknown[][] = await res.json();
-    const bars = parseKlines(rows);
-    const hasMore = bars.length >= limit;
 
     return NextResponse.json(
       {

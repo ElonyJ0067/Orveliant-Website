@@ -156,6 +156,8 @@ async function fetchDeskBars(
     limit: String(opts?.limit ?? INITIAL_LIMIT[interval]),
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
+  // 3 Binance pages per Netlify RTT (~3000 bars) — matches local scroll depth.
+  params.set("pages", "3");
 
   // Stable URL so warm cache can satisfy scroll-back without a hitch.
   const url = `/api/desk-klines?${params}`;
@@ -338,7 +340,7 @@ export function DeskChart({
         const bustUrl =
           `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
           `&interval=${interval}&limit=${HISTORY_PAGE}` +
-          `&endTime=${oldest * 1000 - 1}`;
+          `&endTime=${oldest * 1000 - 1}&pages=3`;
         const busted = await fetchChartJson<{
           bars?: Bar[];
           hasMore?: boolean;
@@ -357,7 +359,7 @@ export function DeskChart({
         warmChartUrl(
           `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
             `&interval=${interval}&limit=${HISTORY_PAGE}` +
-            `&endTime=${merged[0].t * 1000 - 1}`,
+            `&endTime=${merged[0].t * 1000 - 1}&pages=3`,
         );
       }
 
@@ -395,7 +397,7 @@ export function DeskChart({
         warmChartUrl(
           `/api/desk-klines?id=${encodeURIComponent(coinId)}` +
             `&interval=${interval}&limit=${HISTORY_PAGE}` +
-            `&endTime=${data[0].t * 1000 - 1}`,
+            `&endTime=${data[0].t * 1000 - 1}&pages=3`,
         );
       },
     });
@@ -855,17 +857,19 @@ export function DeskChart({
     if (!viewReadyRef.current) {
       requestAnimationFrame(() => {
         applyVisibleRange(rangeRef.current, true);
-        // Deepen buffer after first paint so the first long pan stays fluid.
+        // One extra multi-page deepen (~3000 bars) after first paint.
         if (hasMoreRef.current) {
-          const deepen = () => {
-            void loadOlderRef.current().then((ok) => {
-              if (ok) void loadOlderRef.current();
-            });
+          const deepen = async () => {
+            await loadOlderRef.current();
           };
           if (typeof requestIdleCallback === "function") {
-            requestIdleCallback(deepen, { timeout: 900 });
+            requestIdleCallback(() => {
+              void deepen();
+            }, { timeout: 500 });
           } else {
-            window.setTimeout(deepen, 350);
+            window.setTimeout(() => {
+              void deepen();
+            }, 200);
           }
         }
       });

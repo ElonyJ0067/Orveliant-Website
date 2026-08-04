@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { binanceGet } from "@/lib/binance";
+import {
+  fetchBinanceKlinePages,
+  parsePagesParam,
+} from "@/lib/binanceKlines";
 import { COINS } from "@/lib/coins";
 
 export const dynamic = "force-dynamic";
@@ -19,8 +22,6 @@ const BINANCE_RANGE: Record<string, { interval: string; limit: number }> = {
   max: { interval: "1w", limit: 500 },
 };
 
-/** Always request Binance max on first paint; client shows only `visible` bars. */
-
 /** CoinGecko `days` param (1h is sliced from a 1-day series). */
 const CG_DAYS: Record<string, string> = {
   "1h": "1",
@@ -32,7 +33,7 @@ const CG_DAYS: Record<string, string> = {
   max: "max",
 };
 
-/** Fresh windows only — never CDN-cache paginated history (query-key bugs return duplicates). */
+/** Fresh windows only — never CDN-cache paginated history. */
 const FRESH_CACHE =
   "public, s-maxage=30, stale-while-revalidate=120";
 const NO_STORE = "private, no-store, max-age=0, must-revalidate";
@@ -77,79 +78,70 @@ export async function GET(request: Request) {
   const endTimeParam = searchParams.get("endTime");
   const endTime = endTimeParam ? Number(endTimeParam) : NaN;
   const paginating = Number.isFinite(endTime) && endTime > 0;
+  // Default: 3 pages on first paint + history (~3000 bars / Netlify RTT).
+  const pages = parsePagesParam(searchParams.get("pages") ?? "3");
 
   const coin = COINS.find((c) => c.id === id) ?? COINS[0];
-  // Stables: always true USD (CoinGecko). USDCUSDT is not USDC/USD.
   const useBinance = Boolean(coin.binance) && !STABLES.has(coin.id);
 
   if (useBinance) {
     try {
       const cfg = BINANCE_RANGE[days] ?? BINANCE_RANGE["7"];
-      // Initial + history: Binance max page so left-scroll has room before pagination.
       const limit = 1000;
-      let path =
-        `/api/v3/klines?symbol=${coin.binance}` +
-        `&interval=${cfg.interval}&limit=${limit}`;
-      if (paginating) {
-        path += `&endTime=${Math.floor(endTime)}`;
+      const { rows, hasMore } = await fetchBinanceKlinePages({
+        symbol: coin.binance!,
+        interval: cfg.interval,
+        limit,
+        endTimeMs: paginating ? Math.floor(endTime) : undefined,
+        pages,
+      });
+
+      const series = dedupe(
+        rows.map((r) => ({
+          time: Math.floor(Number(r[0]) / 1000),
+          value: Number(r[4]),
+        })),
+      );
+
+      if (series.length) {
+        return NextResponse.json(
+          {
+            series,
+            live: true,
+            source: "binance",
+            hasMore,
+            retryable: false,
+            visible: cfg.limit,
+            oldest: series[0].time,
+            newest: series[series.length - 1].time,
+          },
+          {
+            headers: {
+              "Cache-Control": paginating ? NO_STORE : FRESH_CACHE,
+              Vary: "Accept-Encoding",
+            },
+          },
+        );
       }
 
-      const res = await binanceGet(path, {
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const rows: unknown[][] = await res.json();
-        const series = dedupe(
-          rows.map((r) => ({
-            time: Math.floor(Number(r[0]) / 1000),
-            value: Number(r[4]),
-          })),
+      if (paginating) {
+        return NextResponse.json(
+          {
+            series: [] as Series,
+            live: true,
+            source: "binance",
+            hasMore: false,
+            retryable: false,
+            visible: cfg.limit,
+          },
+          { headers: { "Cache-Control": NO_STORE } },
         );
-        if (series.length) {
-          const hasMore = series.length >= limit;
-          return NextResponse.json(
-            {
-              series,
-              live: true,
-              source: "binance",
-              hasMore,
-              retryable: false,
-              visible: cfg.limit,
-              oldest: series[0].time,
-              newest: series[series.length - 1].time,
-            },
-            {
-              headers: {
-                "Cache-Control": paginating ? NO_STORE : FRESH_CACHE,
-                Vary: "Accept-Encoding",
-              },
-            },
-          );
-        }
-        // Empty but OK → truly at the start of exchange history.
-        if (paginating) {
-          return NextResponse.json(
-            {
-              series: [] as Series,
-              live: true,
-              source: "binance",
-              hasMore: false,
-              retryable: false,
-              visible: cfg.limit,
-            },
-            { headers: { "Cache-Control": NO_STORE } },
-          );
-        }
-      } else if (paginating) {
-        return retryableEmpty();
       }
     } catch {
       if (paginating) return retryableEmpty();
-      /* fall through for initial window */
     }
   }
 
-  // Pagination is Binance-only. Never claim "end of history" on a miss.
   if (paginating) {
     return retryableEmpty();
   }

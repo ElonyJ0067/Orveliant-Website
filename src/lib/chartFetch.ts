@@ -3,8 +3,7 @@
  * Historical pages (endTime set) are immutable → long TTL.
  * Latest windows refresh often so first paint stays snappy on revisits.
  *
- * History requests are serialized and retried on 503 so Netlify → Binance
- * blips don’t strand the chart in an empty scroll window.
+ * Up to 2 history requests run in parallel so warm + deepen stay fast on Netlify.
  */
 
 type CacheEntry = { at: number; status: number; body: unknown };
@@ -12,8 +11,10 @@ type CacheEntry = { at: number; status: number; body: unknown };
 const mem = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<ChartJsonResult<unknown>>>();
 
-/** One older-history page at a time (warm + scroll share this lane). */
-let historyTail: Promise<unknown> = Promise.resolve();
+/** Cap concurrent older-history fetches (warm + scroll share capacity). */
+const HISTORY_CONCURRENCY = 2;
+let historyActive = 0;
+const historyWait: Array<() => void> = [];
 
 export const CHART_FRESH_TTL_MS = 45_000;
 export const CHART_HISTORY_TTL_MS = 30 * 60_000;
@@ -30,6 +31,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+async function acquireHistorySlot(): Promise<void> {
+  if (historyActive < HISTORY_CONCURRENCY) {
+    historyActive += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    historyWait.push(resolve);
+  });
+  historyActive += 1;
+}
+
+function releaseHistorySlot(): void {
+  historyActive = Math.max(0, historyActive - 1);
+  const next = historyWait.shift();
+  if (next) next();
+}
+
 export function peekChartCache<T>(url: string): T | null {
   const hit = mem.get(url);
   if (!hit) return null;
@@ -42,7 +60,6 @@ export function peekChartCache<T>(url: string): T | null {
 
 export function putChartCache(url: string, status: number, body: unknown): void {
   mem.set(url, { at: Date.now(), status, body });
-  // Soft cap — drop oldest when large.
   if (mem.size > 80) {
     const first = mem.keys().next().value;
     if (first != null) mem.delete(first);
@@ -72,11 +89,9 @@ async function fetchChartJsonOnce<T extends object>(
 ): Promise<ChartJsonResult<T>> {
   const res = await fetch(url, {
     headers: { accept: "application/json" },
-    // History + bust must not reuse a poisoned CDN/browser entry.
     cache: opts?.bust || isHistoryUrl(url) ? "no-store" : "default",
   });
   const json = (await res.json()) as T;
-  // Cache only successful payloads — never freeze a transient 503 into memory.
   if (res.ok) {
     putChartCache(url, res.status, json);
   }
@@ -97,14 +112,15 @@ async function fetchChartJsonInner<T extends object>(
       if (result.ok) return result;
       lastFail = result;
       if (isRetryablePayload(result.status, result.json) && i < retries) {
-        await sleep(450 * (i + 1) + Math.random() * 250);
+        // Short backoff — multi-page API already did the heavy lift.
+        await sleep(120 * (i + 1) + Math.random() * 80);
         continue;
       }
       return result;
     } catch (err) {
       lastErr = err;
       if (i < retries) {
-        await sleep(350 * (i + 1));
+        await sleep(100 * (i + 1));
       }
     }
   }
@@ -113,13 +129,13 @@ async function fetchChartJsonInner<T extends object>(
   throw lastErr instanceof Error ? lastErr : new Error("Chart fetch failed");
 }
 
-function runHistoryQueued<T>(fn: () => Promise<T>): Promise<T> {
-  const run = historyTail.then(fn, fn);
-  historyTail = run.then(
-    () => undefined,
-    () => undefined,
-  );
-  return run;
+async function runHistoryLimited<T>(fn: () => Promise<T>): Promise<T> {
+  await acquireHistorySlot();
+  try {
+    return await fn();
+  } finally {
+    releaseHistorySlot();
+  }
 }
 
 /** Fetch JSON with in-memory TTL cache (and browser HTTP cache when allowed). */
@@ -147,14 +163,13 @@ export async function fetchChartJson<T extends object>(
     return existing as Promise<ChartJsonResult<T>>;
   }
 
-  // History pages need extra retries on Netlify (Binance 429/timeout blips).
-  const retries = opts?.retries ?? (isHistoryUrl(url) ? 5 : 1);
+  const retries = opts?.retries ?? (isHistoryUrl(url) ? 4 : 1);
   const bust = Boolean(opts?.bust);
 
   const exec = async (): Promise<ChartJsonResult<T>> => {
     try {
       if (isHistoryUrl(url)) {
-        return await runHistoryQueued(() =>
+        return await runHistoryLimited(() =>
           fetchChartJsonInner<T>(url, retries, bust),
         );
       }
@@ -188,7 +203,6 @@ export function clampLogicalRange(
   const rightPad = opts?.rightPad ?? 8;
   const minSpan = opts?.minSpan ?? 16;
   const maxTo = barCount - 1 + rightPad;
-  // Generous slack so panning feels native; only stop huge blank regions.
   const minFrom = -40;
   let from = logical.from;
   let to = logical.to;

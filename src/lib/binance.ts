@@ -4,9 +4,10 @@
  * `data-api.binance.vision` is the official market-data-only mirror.
  *
  * Strategy tuned for serverless (~10s Netlify limit):
- * 1) Race the two market-data hosts (not all three — avoids 429 storms)
- * 2) Fall back to api.binance.com once if both miss
- * 3) One full-cycle retry with backoff (Netlify cold + upstream blips)
+ * 1) Sticky host after first success (avoids re-racing every history page)
+ * 2) Race two market-data hosts when cold
+ * 3) Fall back to api.binance.com once
+ * 4) One full-cycle retry with short backoff
  */
 const BINANCE_PRIMARY = [
   "https://data-api.binance.vision",
@@ -26,8 +27,11 @@ type FetchInit = RequestInit & {
   next?: { revalidate?: number };
 };
 
-/** Per-host budget; keep headroom under Netlify hobby ~10s for a full cycle+retry. */
-const HOST_TIMEOUT_MS = 3_800;
+/** Per-host budget; keep headroom under Netlify hobby ~10s for parallel pages. */
+const HOST_TIMEOUT_MS = 3_200;
+
+/** Warm host after a success — same isolate reused across history pages. */
+let stickyHost: string | null = null;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -55,7 +59,7 @@ async function fetchHost(
     });
 
     if (res.status === 429) {
-      await sleep(700);
+      await sleep(280);
       const retryCtrl = new AbortController();
       const retryTimer = setTimeout(() => retryCtrl.abort(), HOST_TIMEOUT_MS);
       try {
@@ -90,6 +94,7 @@ async function tryHost(
   if (res.status === 429 || res.status >= 500) {
     throw new Error(`Binance ${res.status} from ${base}`);
   }
+  stickyHost = base;
   return res;
 }
 
@@ -97,6 +102,14 @@ async function attemptAll(
   path: string,
   init?: FetchInit,
 ): Promise<Response> {
+  if (stickyHost) {
+    try {
+      return await tryHost(stickyHost, path, init);
+    } catch {
+      stickyHost = null;
+    }
+  }
+
   try {
     return await Promise.any(
       BINANCE_PRIMARY.map((base) => tryHost(base, path, init)),
@@ -120,7 +133,8 @@ export async function binanceGet(
     return await attemptAll(path, init);
   } catch {
     // Second full cycle — common on Netlify after a cold 429/timeout.
-    await sleep(450);
+    await sleep(220);
+    stickyHost = null;
     try {
       return await attemptAll(path, init);
     } catch {

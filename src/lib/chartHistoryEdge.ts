@@ -1,20 +1,15 @@
 /**
  * Left-edge history guardian (TradingView-style buffer).
  *
- * Pro feel = never sit on an empty left gutter:
- * - Warm when approaching the buffer zone
- * - Actually prepend when the viewport gets within BUFFER bars of the oldest data
- * - Keep retrying on Netlify 503s while still in that zone
- *
- * Maintain-position shift after prepend keeps the same candles on screen, so
- * loading at ~150 (not at 0) finishes before the user can hit blank space.
+ * Prefetch early so Netlify latency never empties the left gutter.
+ * Multi-page API (~3000 bars/request) means one load covers a long pan.
  */
 
 /** Prefetch+apply when fewer than this many bars sit left of the viewport. */
-export const EDGE_LOAD_FROM = 220;
+export const EDGE_LOAD_FROM = 320;
 /** Start HTTP warm a bit earlier so apply is instant. */
-export const EDGE_WARM_FROM = 360;
-export const EDGE_POLL_MS = 850;
+export const EDGE_WARM_FROM = 480;
+export const EDGE_POLL_MS = 650;
 
 type EdgeGuards = {
   getChart: () => {
@@ -58,7 +53,7 @@ export function startLeftEdgeGuardian(guards: EdgeGuards): () => void {
       }
     } finally {
       if (!stopped) {
-        const delay = EDGE_POLL_MS + fails * 350;
+        const delay = EDGE_POLL_MS + fails * 280;
         timer = setTimeout(() => {
           void tick();
         }, delay);
@@ -66,10 +61,9 @@ export function startLeftEdgeGuardian(guards: EdgeGuards): () => void {
     }
   };
 
-  // First tick soon after mount so the buffer deepens before the first long pan.
   timer = setTimeout(() => {
     void tick();
-  }, 280);
+  }, 180);
 
   return () => {
     stopped = true;
