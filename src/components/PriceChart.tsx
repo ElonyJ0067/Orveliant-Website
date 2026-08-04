@@ -209,7 +209,7 @@ export function PriceChart({
       const url =
         `/api/chart?id=${encodeURIComponent(id)}` +
         `&days=${encodeURIComponent(daysAtStart)}` +
-        `&endTime=${oldestSec * 1000 - 1}&pages=3`;
+        `&endTime=${oldestSec * 1000 - 1}&pages=4`;
       // #region agent log
       fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/components/PriceChart.tsx:loadOlder", message: "price loadOlder start", data: { id, days: daysAtStart, currentLen: current.length, oldestSec, from: logical?.from ?? null, to: logical?.to ?? null, hasMore: hasMoreRef.current }, timestamp: Date.now() }) }).catch(() => {});
       // #endregion
@@ -274,7 +274,7 @@ export function PriceChart({
         warmChartUrl(
           `/api/chart?id=${encodeURIComponent(id)}` +
             `&days=${encodeURIComponent(daysAtStart)}` +
-            `&endTime=${pointTimeSec(merged[0].time) * 1000 - 1}&pages=3`,
+            `&endTime=${pointTimeSec(merged[0].time) * 1000 - 1}&pages=4`,
         );
       }
 
@@ -335,7 +335,7 @@ export function PriceChart({
         warmChartUrl(
           `/api/chart?id=${encodeURIComponent(idRef.current)}` +
             `&days=${encodeURIComponent(daysRef.current)}` +
-            `&endTime=${oldestSec * 1000 - 1}&pages=3`,
+            `&endTime=${oldestSec * 1000 - 1}&pages=4`,
         );
       },
     });
@@ -501,7 +501,7 @@ export function PriceChart({
 
     const url =
       `/api/chart?id=${encodeURIComponent(id)}` +
-      `&days=${encodeURIComponent(days)}&pages=3`;
+      `&days=${encodeURIComponent(days)}&pages=4`;
     fetchChartJson<{
       series?: { time: number; value: number }[];
       hasMore?: boolean;

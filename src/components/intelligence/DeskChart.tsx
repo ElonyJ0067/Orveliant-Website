@@ -167,8 +167,8 @@ async function fetchDeskBars(
     limit: String(opts?.limit ?? INITIAL_LIMIT[interval]),
   });
   if (opts?.endTimeMs != null) params.set("endTime", String(opts.endTimeMs));
-  // Deeper first paint on Netlify; paginated loads keep 3-page chunks.
-  const pages = opts?.pages ?? (opts?.endTimeMs != null ? 3 : 4);
+  // Use 4-page chunks so deployed history catches up with local quickly.
+  const pages = opts?.pages ?? 4;
   params.set("pages", String(pages));
 
   // Stable URL so warm cache can satisfy scroll-back without a hitch.

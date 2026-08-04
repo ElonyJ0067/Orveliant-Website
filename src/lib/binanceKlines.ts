@@ -23,7 +23,8 @@ const INTERVAL_MS: Record<string, number> = {
   "1w": 604_800_000,
 };
 
-export const MAX_KLINE_PAGES = 3;
+// 4 pages keeps Netlify startup/history near local without overloading Binance.
+export const MAX_KLINE_PAGES = 4;
 
 export function parsePagesParam(raw: string | null): number {
   const n = raw ? Number(raw) : 1;
