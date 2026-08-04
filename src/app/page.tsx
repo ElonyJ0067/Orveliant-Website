@@ -13,7 +13,7 @@ export default function Home() {
       {/* HERO — fills first screen; short phones grow instead of clipping */}
       <section
         id="hero"
-        className="relative flex min-h-[calc(100svh-68px)] flex-col overflow-hidden [@media(max-height:720px)]:min-h-0"
+        className="relative flex min-h-[calc(100svh-68px)] min-h-[calc(100dvh-68px)] flex-col overflow-hidden"
       >
         <div className="absolute inset-0 -z-10">
           <div className="hero-art-wrap absolute inset-0">
