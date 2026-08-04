@@ -120,7 +120,7 @@ export function PriceChart({
   const daysRef = useRef("7");
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
-  const loadOlderRef = useRef<() => Promise<void>>(async () => {});
+  const loadOlderRef = useRef<() => Promise<boolean>>(async () => false);
   /** Bumps on coin/range change so stale older-history fetches never apply. */
   const fetchGenRef = useRef(0);
   /** Block left-edge load-more until the new range has painted “now”. */
@@ -160,11 +160,20 @@ export function PriceChart({
     }
   }, []);
 
-  const loadOlder = useCallback(async () => {
-    if (loadingMoreRef.current || !hasMoreRef.current || !viewReadyRef.current) return;
-    if (STABLES.has(id)) return;
+  /** True when the left edge is near the oldest loaded bar (scroll won't move further). */
+  const atLeftEdge = useCallback(() => {
+    const logical = chartRef.current?.timeScale().getVisibleLogicalRange();
+    if (!logical) return false;
+    return logical.from < 16;
+  }, []);
+
+  const loadOlder = useCallback(async (): Promise<boolean> => {
+    if (loadingMoreRef.current || !hasMoreRef.current || !viewReadyRef.current) {
+      return false;
+    }
+    if (STABLES.has(id)) return false;
     const current = dataRef.current;
-    if (!current.length) return;
+    if (!current.length) return false;
 
     const chart = chartRef.current;
     const logical = chart?.timeScale().getVisibleLogicalRange() ?? null;
@@ -187,7 +196,7 @@ export function PriceChart({
       }>(url, { retries: 4 });
 
       // Range/coin changed while we were fetching — drop this page.
-      if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return;
+      if (gen !== fetchGenRef.current || daysRef.current !== daysAtStart) return false;
 
       // Transient Netlify/Binance miss — keep hasMore; clamp keeps the plot full.
       if (!ok || json.retryable) {
@@ -203,7 +212,7 @@ export function PriceChart({
             }
           }
         }
-        return;
+        return false;
       }
 
       const older: Point[] = (json.series ?? []).map(
@@ -215,7 +224,7 @@ export function PriceChart({
 
       if (!older.length) {
         hasMoreRef.current = false;
-        return;
+        return false;
       }
 
       const beforeLen = current.length;
@@ -223,7 +232,7 @@ export function PriceChart({
       const added = merged.length - beforeLen;
       if (added <= 0) {
         hasMoreRef.current = false;
-        return;
+        return false;
       }
 
       dataRef.current = merged;
@@ -238,6 +247,7 @@ export function PriceChart({
       if (chart && logical && added > 0) {
         requestAnimationFrame(() => {
           if (gen !== fetchGenRef.current) return;
+          // Keep the same candles on screen; left side becomes a scrollable buffer.
           chart.timeScale().setVisibleLogicalRange({
             from: logical.from + added,
             to: logical.to + added,
@@ -254,8 +264,10 @@ export function PriceChart({
             `&endTime=${nextOldest * 1000 - 1}`,
         );
       }
+      return true;
     } catch {
       /* keep series + hasMore; user can pan again */
+      return false;
     } finally {
       if (gen === fetchGenRef.current) {
         loadingMoreRef.current = false;
@@ -375,25 +387,37 @@ export function PriceChart({
           } catch {
             /* ignore */
           }
-          // Still request older bars when the user is pinned to the left edge.
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 12) {
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 16) {
             void loadOlderRef.current();
           }
           return;
         }
       }
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 12) {
+      if (logical.from < 16) {
         void loadOlderRef.current();
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
+
+    // Library often won't emit range changes when already at bar 0 — wheel must
+    // force a history fetch or scroll appears dead (prod Network: no endTime=).
+    const host = containerRef.current;
+    const onWheel = () => {
+      if (!viewReadyRef.current || !hasMoreRef.current || loadingMoreRef.current) return;
+      const logical = chart.timeScale().getVisibleLogicalRange();
+      if (logical && logical.from < 16) {
+        void loadOlderRef.current();
+      }
+    };
+    host.addEventListener("wheel", onWheel, { passive: true });
 
     chartRef.current = chart;
     seriesRef.current = series;
 
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
+      host.removeEventListener("wheel", onWheel);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
@@ -455,25 +479,22 @@ export function PriceChart({
           if (gen !== fetchGenRef.current) return;
           snapToLatest(data);
           viewReadyRef.current = true;
+          // Initial view is from=0 → further pan emits no range change. Apply at
+          // least one older page into a left buffer so scroll-back can move.
+          if (json.hasMore && data.length && !STABLES.has(id)) {
+            window.setTimeout(() => {
+              if (gen !== fetchGenRef.current) return;
+              void loadOlderRef.current().then((ok) => {
+                // Second page when still glued to the left edge.
+                if (ok && gen === fetchGenRef.current && atLeftEdge()) {
+                  void loadOlderRef.current();
+                }
+              });
+            }, 80);
+          }
         });
         setLive(Boolean(json.live));
         setLoading(false);
-
-        // Warm first older page after idle so scroll-back is ready on Netlify.
-        if (json.hasMore && data.length && !STABLES.has(id)) {
-          const oldestSec = pointTimeSec(data[0].time);
-          const warm = () =>
-            warmChartUrl(
-              `/api/chart?id=${encodeURIComponent(id)}` +
-                `&days=${encodeURIComponent(days)}` +
-                `&endTime=${oldestSec * 1000 - 1}`,
-            );
-          if (typeof requestIdleCallback === "function") {
-            requestIdleCallback(warm, { timeout: 1200 });
-          } else {
-            window.setTimeout(warm, 400);
-          }
-        }
       })
       .catch(() => {
         if (active && gen === fetchGenRef.current) setLoading(false);
@@ -482,7 +503,7 @@ export function PriceChart({
     return () => {
       active = false;
     };
-  }, [id, days, snapToLatest]);
+  }, [id, days, snapToLatest, atLeftEdge]);
 
   // Live tip — skip stables (chart is true USD; Binance USDCUSDT tip would distort it).
   useEffect(() => {

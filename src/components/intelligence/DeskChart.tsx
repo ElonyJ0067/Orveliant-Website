@@ -443,16 +443,18 @@ export function DeskChart({
     };
   }, [coinId, interval]);
 
-  // Keep fetching older pages until the selected range is covered (or history ends).
+  // Cover the selected range, then keep a left buffer so pan-left can move.
   useEffect(() => {
     if (chartLoading || loadingMore || !bars.length || !hasMore) return;
     const cfg = DESK_RANGES.find((r) => r.id === range);
-    if (!cfg || barsCoverSeconds(bars, cfg.seconds)) return;
-    if (autoFillPagesRef.current >= 10) return;
+    const logical = chartRef.current?.timeScale().getVisibleLogicalRange();
+    const needRange = Boolean(cfg && !barsCoverSeconds(bars, cfg.seconds));
+    const needBuffer = Boolean(logical && logical.from < 48);
+    if (!needRange && !needBuffer) return;
+    if (autoFillPagesRef.current >= 12) return;
     if (autoFillFailsRef.current >= 5) return;
     let cancelled = false;
     (async () => {
-      // Brief pause after a miss so Netlify/Binance can recover before the next page.
       if (autoFillFailsRef.current > 0) {
         await new Promise((r) => setTimeout(r, 600 * autoFillFailsRef.current));
       }
@@ -721,8 +723,7 @@ export function DeskChart({
             /* ignore */
           }
           candleRef.current?.priceScale().applyOptions({ autoScale: true });
-          // Left-edge clamp used to return before loadOlder — that stranded prod.
-          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 14) {
+          if (hasMoreRef.current && !loadingMoreRef.current && clamped.from < 48) {
             void loadOlderRef.current();
           }
           return;
@@ -730,11 +731,22 @@ export function DeskChart({
       }
 
       if (loadingMoreRef.current || !hasMoreRef.current) return;
-      if (logical.from < 14) {
+      if (logical.from < 48) {
         void loadOlderRef.current();
       }
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLogical);
+
+    // When already at bar 0, wheel/zoom often doesn't change the logical range.
+    const host = containerRef.current;
+    const onWheel = () => {
+      if (!hasMoreRef.current || loadingMoreRef.current) return;
+      const logical = chart.timeScale().getVisibleLogicalRange();
+      if (logical && logical.from < 48) {
+        void loadOlderRef.current();
+      }
+    };
+    host.addEventListener("wheel", onWheel, { passive: true });
 
     // Re-paint current bars after pane recreate without resetting a ready view
     // unless this is a fresh coin/interval load (viewReady false).
@@ -755,12 +767,21 @@ export function DeskChart({
             volume: last.v,
           }
         : null;
-      requestAnimationFrame(() => applyViewRef.current(rangeRef.current, true));
+      requestAnimationFrame(() => {
+        applyViewRef.current(rangeRef.current, true);
+        // Prefetch older bars into a left buffer (from=0 emits no further pans).
+        if (hasMoreRef.current) {
+          window.setTimeout(() => {
+            void loadOlderRef.current();
+          }, 80);
+        }
+      });
     }
 
     return () => {
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLogical);
       chart.unsubscribeCrosshairMove(onMove);
+      host.removeEventListener("wheel", onWheel);
       if (resizeTimer) clearTimeout(resizeTimer);
       ro.disconnect();
       chart.remove();
@@ -800,7 +821,14 @@ export function DeskChart({
       : null;
 
     if (!viewReadyRef.current) {
-      requestAnimationFrame(() => applyVisibleRange(rangeRef.current, true));
+      requestAnimationFrame(() => {
+        applyVisibleRange(rangeRef.current, true);
+        if (hasMoreRef.current) {
+          window.setTimeout(() => {
+            void loadOlderRef.current();
+          }, 80);
+        }
+      });
     }
   }, [seriesPack, bars, applyVisibleRange]);
 
