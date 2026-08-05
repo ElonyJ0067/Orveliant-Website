@@ -348,7 +348,7 @@ export function PriceChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#7d828b",
-        fontFamily: "var(--font-inter), system-ui, sans-serif",
+        fontFamily: "var(--font-ibm-plex), system-ui, sans-serif",
         fontSize: 11,
         attributionLogo: false,
       },

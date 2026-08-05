@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 
 type Role = "user" | "assistant";
 
@@ -13,39 +13,76 @@ type Message = {
 
 const WELCOME = "Hi, what would you like to know about Orveliant?";
 
-/** Soft mint — available, without competing with gold */
+/** Soft mint — available status */
 const STATUS_ONLINE = "#4db887";
+
+/** Clear glass interior — never yellow */
+const DISC_FACE = "rgba(255, 255, 255, 0.07)";
 
 const FAB = {
   closed: {
-    background:
-      "linear-gradient(148deg, #f8ecc0 0%, #e8ce78 26%, #c9a227 62%, #9a7616 100%)",
-    border: "1px solid rgba(255,246,214,0.52)",
+    face: "rgba(255, 255, 255, 0.07)",
+    faceHover: "rgba(255, 255, 255, 0.14)",
     shadow:
-      "0 0 0 1px rgba(201,162,39,0.16), 0 0 20px -6px rgba(201,162,39,0.4), 0 18px 42px -20px rgba(201,162,39,0.52), 0 10px 22px -14px rgba(0,0,0,0.88), inset 0 1.5px 0 rgba(255,250,230,0.68), inset 0 -1px 0 rgba(120,90,20,0.22)",
+      "0 10px 28px -14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.14)",
     shadowHover:
-      "0 0 0 1px rgba(247,231,168,0.45), 0 0 34px -2px rgba(244,221,143,0.55), 0 22px 50px -16px rgba(201,162,39,0.68), 0 12px 28px -12px rgba(0,0,0,0.9), inset 0 1.5px 0 rgba(255,252,235,0.8), inset 0 -1px 0 rgba(120,90,20,0.18)",
+      "0 18px 40px -14px rgba(0,0,0,0.82), 0 0 32px -8px rgba(201,162,39,0.32), inset 0 1px 0 rgba(255,255,255,0.28)",
   },
   open: {
-    background: "linear-gradient(165deg, #1c222c, #0f1319)",
-    border: "1px solid rgba(232,206,120,0.5)",
+    face: "rgba(255, 255, 255, 0.07)",
+    faceHover: "rgba(255, 255, 255, 0.14)",
     shadow:
-      "0 14px 34px -16px rgba(0,0,0,0.94), 0 0 0 1px rgba(232,206,120,0.14), inset 0 1px 0 rgba(255,255,255,0.04)",
+      "0 10px 28px -14px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.14)",
     shadowHover:
-      "0 16px 38px -14px rgba(0,0,0,0.96), 0 0 22px -6px rgba(201,162,39,0.26), 0 0 0 1px rgba(232,206,120,0.28), inset 0 1px 0 rgba(255,255,255,0.06)",
+      "0 18px 40px -14px rgba(0,0,0,0.82), 0 0 28px -8px rgba(201,162,39,0.26), inset 0 1px 0 rgba(255,255,255,0.28)",
   },
 } as const;
 
+/** Metallic gold ring drawn as SVG stroke — cannot fill the disc yellow */
+function GoldRim() {
+  const uid = useId().replace(/:/g, "");
+  const gid = `fab-rim-${uid}`;
+
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 100 100"
+      className="pointer-events-none absolute inset-0 z-[1] size-full overflow-visible transition-[filter,opacity] duration-300 ease-out opacity-[0.92] group-hover:opacity-100 group-hover:drop-shadow-[0_0_8px_rgba(244,221,143,0.45)]"
+    >
+      <defs>
+        <linearGradient id={gid} x1="12" y1="10" x2="88" y2="90" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f7e7a8" />
+          <stop offset="22%" stopColor="#f4dd8f" />
+          <stop offset="48%" stopColor="#c9a227" />
+          <stop offset="72%" stopColor="#a17d18" />
+          <stop offset="100%" stopColor="#e8ce78" />
+        </linearGradient>
+      </defs>
+      <circle
+        cx="50"
+        cy="50"
+        r="48.2"
+        fill="none"
+        stroke={`url(#${gid})`}
+        strokeWidth="2.4"
+        className="origin-center transition-[stroke-width] duration-300 ease-out group-hover:[stroke-width:3]"
+      />
+    </svg>
+  );
+}
+
 function BotMark({
   className = "",
-  tone = "onGold",
+  tone = "onDark",
 }: {
   className?: string;
-  /** onGold = deep mark on bright gold discs; onDark = gold mark on dark surfaces */
+  /** onDark = metallic gold on deep surfaces (default); onGold kept for rare bright discs */
   tone?: "onGold" | "onDark";
 }) {
+  const uid = useId().replace(/:/g, "");
+  const gradId = `bot-gold-${uid}`;
   const isOnGold = tone === "onGold";
-  const stroke = isOnGold ? "#120e06" : "#f4dd8f";
+  const stroke = isOnGold ? "#120e06" : `url(#${gradId})`;
 
   return (
     <svg
@@ -55,17 +92,35 @@ function BotMark({
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
+      {!isOnGold ? (
+        <defs>
+          <linearGradient
+            id={gradId}
+            x1="6"
+            y1="8"
+            x2="34"
+            y2="34"
+            gradientUnits="userSpaceOnUse"
+          >
+            <stop offset="0%" stopColor="#f7e7a8" />
+            <stop offset="22%" stopColor="#f4dd8f" />
+            <stop offset="48%" stopColor="#c9a227" />
+            <stop offset="72%" stopColor="#a17d18" />
+            <stop offset="100%" stopColor="#e8ce78" />
+          </linearGradient>
+        </defs>
+      ) : null}
       <path
         d="M11.4 9.8h17.2c3.98 0 7.2 3.22 7.2 7.2v7.8c0 3.98-3.22 7.2-7.2 7.2H19.3l-5.22 4.46c-.67.57-1.71.09-1.71-.78V32h-.96c-3.98 0-7.2-3.22-7.2-7.2V17c0-3.98 3.22-7.2 7.2-7.2Z"
         stroke={stroke}
-        strokeWidth="2.1"
+        strokeWidth="1.85"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
         d="M13.9 18.7h12.1M13.9 23h7.9"
         stroke={stroke}
-        strokeWidth="2.1"
+        strokeWidth="1.85"
         strokeLinecap="round"
       />
     </svg>
@@ -76,42 +131,40 @@ function BotMark({
  * Online badge drawn in a shared 100×100 viewBox so header + FAB
  * keep identical relative size and SE seat (match launcher look).
  */
-function OnlineDot({ ring = "#08090b" }: { ring?: string }) {
+function OnlineDot({ ring = "rgba(8,9,11,0.2)" }: { ring?: string }) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 100 100"
       className="pointer-events-none absolute inset-0 z-[2] size-full overflow-visible"
     >
-      {/* Outer ring */}
       <circle cx="87" cy="87" r="12.5" fill={ring} />
-      {/* Solid status — ~25% of disc diameter */}
       <circle cx="87" cy="87" r="9.2" fill={STATUS_ONLINE} />
     </svg>
   );
 }
 
-/** Shared gold disc used by header + launcher for identical mark + status */
+/** Clear glass disc + SVG gold rim (gold never fills the face) */
 function GoldAvatar({
   className = "",
   markClassName = "h-[55%] w-[55%]",
-  ring = "#08090b",
   showStatus = true,
-  style,
 }: {
   className?: string;
   markClassName?: string;
-  ring?: string;
   showStatus?: boolean;
-  style?: CSSProperties;
 }) {
   return (
     <div
-      className={`relative flex items-center justify-center overflow-visible rounded-full ${className}`}
-      style={style}
+      className={`relative flex items-center justify-center rounded-full backdrop-blur-xl ${className}`}
+      style={{
+        background: DISC_FACE,
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.14)",
+      }}
     >
-      <BotMark className={`relative z-[1] ${markClassName}`} tone="onGold" />
-      {showStatus ? <OnlineDot ring={ring} /> : null}
+      <GoldRim />
+      <BotMark className={`relative z-[1] ${markClassName}`} tone="onDark" />
+      {showStatus ? <OnlineDot /> : null}
     </div>
   );
 }
@@ -298,14 +351,7 @@ export function ChatBot() {
             className="pointer-events-auto flex h-[min(34rem,calc(100dvh-6.5rem-env(safe-area-inset-bottom)))] w-[min(24rem,calc(100vw-2.5rem-env(safe-area-inset-right)))] flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_28px_80px_-28px_rgba(0,0,0,0.9),0_0_0_1px_rgba(201,162,39,0.12)]"
           >
             <header className="relative flex items-center gap-3 border-b border-line bg-surface-2/95 px-4 py-3.5 backdrop-blur-md">
-              <GoldAvatar
-                className="h-11 w-11 shrink-0 shadow-[0_8px_24px_-6px_rgba(201,162,39,0.7)]"
-                ring="#14171d"
-                style={{
-                  background: FAB.closed.background,
-                  border: FAB.closed.border,
-                }}
-              />
+              <GoldAvatar className="h-11 w-11 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="font-display text-sm font-semibold tracking-tight text-ink">
                   Orveliant Assistant
@@ -344,12 +390,14 @@ export function ChatBot() {
                 >
                   {m.role === "assistant" && (
                     <div
-                      className="mr-2 mt-0.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full sm:flex"
+                      className="relative mr-2 mt-0.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-full backdrop-blur-xl sm:flex"
                       style={{
-                        background: "linear-gradient(145deg, #f7e7a8, #e8ce78 45%, #c9a227)",
+                        background: DISC_FACE,
+                        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.14)",
                       }}
                     >
-                      <BotMark className="h-5 w-5" tone="onGold" />
+                      <GoldRim />
+                      <BotMark className="relative z-[1] h-5 w-5" tone="onDark" />
                     </div>
                   )}
                   <div
@@ -443,32 +491,31 @@ export function ChatBot() {
         onClick={toggleChat}
         initial={false}
         animate={{
+          backgroundColor: open ? FAB.open.face : FAB.closed.face,
           boxShadow: open ? FAB.open.shadow : FAB.closed.shadow,
+          y: 0,
         }}
         whileHover={{
-          scale: 1.045,
-          filter: "brightness(1.055)",
+          scale: 1.06,
+          y: -2,
+          backgroundColor: open ? FAB.open.faceHover : FAB.closed.faceHover,
           boxShadow: open ? FAB.open.shadowHover : FAB.closed.shadowHover,
         }}
-        whileTap={{ scale: 0.97, filter: "brightness(0.98)" }}
-        transition={{ type: "spring", stiffness: 420, damping: 28, mass: 0.7 }}
-        className="pointer-events-auto group relative flex h-[3.35rem] w-[3.35rem] items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-bright/70"
-        style={{
-          background: open ? FAB.open.background : FAB.closed.background,
-          border: open ? FAB.open.border : FAB.closed.border,
-          color: open ? "#e8ce78" : "#120e06",
-        }}
+        whileTap={{ scale: 0.96, y: 0 }}
+        transition={{ type: "spring", stiffness: 460, damping: 26, mass: 0.65 }}
+        className="pointer-events-auto group relative flex h-[3.35rem] w-[3.35rem] cursor-pointer items-center justify-center rounded-full backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-bright/60 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+        style={{ color: "#f4dd8f" }}
       >
-        {/* Soft ambient halo — expands on hover without bouncing the disc */}
+        {/* Soft ambient glow — only on hover */}
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-[-6px] rounded-full opacity-[0.35] transition-opacity duration-300 group-hover:opacity-70"
+          className="pointer-events-none absolute inset-[-10px] rounded-full opacity-0 transition-opacity duration-300 ease-out group-hover:opacity-100"
           style={{
-            background: open
-              ? "radial-gradient(circle, rgba(232,206,120,0.16) 0%, transparent 68%)"
-              : "radial-gradient(circle, rgba(244,221,143,0.28) 0%, transparent 68%)",
+            background:
+              "radial-gradient(circle, rgba(201,162,39,0.22) 0%, transparent 68%)",
           }}
         />
+        <GoldRim />
         <AnimatePresence mode="wait" initial={false}>
           {open ? (
             <motion.span
@@ -477,7 +524,7 @@ export function ChatBot() {
               animate={{ opacity: 1, rotate: 0 }}
               exit={{ opacity: 0, rotate: 40 }}
               transition={{ duration: 0.15 }}
-              className="relative z-[1]"
+              className="relative z-[1] transition-transform duration-300 ease-out group-hover:scale-105"
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
                 <path
@@ -495,13 +542,13 @@ export function ChatBot() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.15 }}
-              className="relative z-[1] flex size-full items-center justify-center"
+              className="relative z-[1] flex size-full items-center justify-center transition-transform duration-300 ease-out group-hover:scale-[1.06]"
             >
-              <BotMark className="h-[55%] w-[55%]" tone="onGold" />
+              <BotMark className="h-[55%] w-[55%]" tone="onDark" />
             </motion.span>
           )}
         </AnimatePresence>
-        {!open && <OnlineDot ring="#08090b" />}
+        {!open && <OnlineDot />}
       </motion.button>
     </div>
   );

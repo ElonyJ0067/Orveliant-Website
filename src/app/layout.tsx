@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sora, Inter } from "next/font/google";
+import { Outfit, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -7,8 +7,8 @@ import { ChatBotLazy } from "@/components/ChatBotLazy";
 import { VisitTracker } from "@/components/VisitTracker";
 import { SITE } from "@/lib/site";
 
-const sora = Sora({
-  variable: "--font-sora",
+const outfit = Outfit({
+  variable: "--font-outfit",
   subsets: ["latin"],
   // Hero + headings only — drop light weights from the critical path.
   weight: ["600", "700", "800"],
@@ -16,11 +16,12 @@ const sora = Sora({
   preload: true,
 });
 
-const inter = Inter({
-  variable: "--font-inter",
+const ibmPlexSans = IBM_Plex_Sans({
+  variable: "--font-ibm-plex",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
-  // Body text can swap in; don't block first paint on Inter.
+  // Body text can swap in; don't block first paint on the body face.
   preload: false,
 });
 
@@ -86,7 +87,7 @@ export default function RootLayout({
   };
 
   return (
-    <html lang="en" suppressHydrationWarning className={`${sora.variable} ${inter.variable} h-full`}>
+    <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${ibmPlexSans.variable} h-full`}>
       <head>
         {/* LCP: hero poster before video bytes */}
         <link

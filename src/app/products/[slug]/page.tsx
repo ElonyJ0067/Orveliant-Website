@@ -59,20 +59,22 @@ export default async function ProductPage({
           </Reveal>
         </div>
         <Reveal delay={0.1}>
-          <div className="relative mx-auto h-64 w-64 md:h-80 md:w-80">
+          <div className="group relative mx-auto h-64 w-64 cursor-default md:h-80 md:w-80">
             <div
-              className="absolute inset-0 rounded-full blur-3xl opacity-50"
+              className="absolute inset-0 rounded-full opacity-50 blur-3xl transition-[opacity,transform] duration-500 ease-out group-hover:scale-110 group-hover:opacity-80 motion-reduce:transition-none motion-reduce:group-hover:scale-100"
               style={{ background: "radial-gradient(circle, rgba(201,162,39,0.5), transparent 70%)" }}
             />
-            <Image
-              src={product.icon}
-              alt={product.name}
-              fill
-              quality={95}
-              sizes="(max-width: 768px) 256px, 320px"
-              priority
-              className="relative object-contain animate-float drop-shadow-[0_20px_40px_rgba(201,162,39,0.4)]"
-            />
+            <div className="relative h-full w-full transition-transform duration-500 ease-out group-hover:scale-[1.04] motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+              <Image
+                src={product.icon}
+                alt={product.name}
+                fill
+                quality={95}
+                sizes="(max-width: 768px) 256px, 320px"
+                priority
+                className="relative object-contain animate-float drop-shadow-[0_20px_40px_rgba(201,162,39,0.4)] transition-[filter] duration-500 ease-out group-hover:brightness-110 group-hover:drop-shadow-[0_24px_48px_rgba(201,162,39,0.55)] motion-reduce:transition-none"
+              />
+            </div>
           </div>
         </Reveal>
       </div>

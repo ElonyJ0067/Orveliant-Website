@@ -19,8 +19,8 @@
   --color-up: #35c07a;
   --color-down: #e5544b;
 
-  --font-display: var(--font-sora);
-  --font-sans: var(--font-inter);
+  --font-display: var(--font-outfit);
+  --font-sans: var(--font-ibm-plex);
 
   --shadow-glow: 0 0 60px -12px rgba(201, 162, 39, 0.45);
   --shadow-card: 0 24px 60px -30px rgba(0, 0, 0, 0.9);
@@ -162,6 +162,76 @@ body::before {
       -webkit-background-clip: text;
       background-clip: text;
       color: transparent;
+    }
+  }
+
+  /* Brand wordmark — unified, institutional; soft metal sheen, not a yellow split */
+  .brand-wordmark {
+    letter-spacing: -0.035em;
+    color: var(--color-ink);
+  }
+
+  .font-display {
+    letter-spacing: -0.025em;
+  }
+
+  .logo-mark {
+    transition:
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      filter 0.45s ease;
+  }
+
+  .logo-home:hover .logo-mark,
+  .logo-home:focus-visible .logo-mark {
+    transform: rotate(8deg);
+    filter:
+      brightness(1.12)
+      saturate(1.15)
+      drop-shadow(0 0 10px rgba(201, 162, 39, 0.35));
+  }
+
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .brand-wordmark {
+      background-image: linear-gradient(
+        165deg,
+        #ffffff 0%,
+        #f6f1e6 42%,
+        #d8c9a0 78%,
+        #e8ce78 100%
+      );
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      /* Never apply filter here — it breaks background-clip:text into a solid bar */
+      transition: background-image 0.45s ease;
+    }
+
+    /* Header logo only: warmer metal lift — letters stay clipped */
+    .logo-home:hover .brand-wordmark,
+    .logo-home:focus-visible .brand-wordmark {
+      background-image: linear-gradient(
+        165deg,
+        #fff8e8 0%,
+        #f4dd8f 40%,
+        #e8ce78 72%,
+        #c9a227 100%
+      );
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .logo-mark {
+      transition: filter 0.2s ease;
+    }
+
+    .logo-home:hover .logo-mark,
+    .logo-home:focus-visible .logo-mark {
+      transform: none;
     }
   }
 

@@ -520,7 +520,7 @@ export function DeskChart({
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#9aa0a8",
-        fontFamily: "var(--font-inter), ui-sans-serif, system-ui, sans-serif",
+        fontFamily: "var(--font-ibm-plex), ui-sans-serif, system-ui, sans-serif",
         fontSize: 12,
         attributionLogo: false,
         panes: {

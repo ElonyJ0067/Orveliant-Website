@@ -38,7 +38,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
       href="/"
       aria-label="Orveliant home"
       scroll
-      className="flex items-center gap-2.5 group"
+      className="logo-home group flex items-center gap-2.5"
       onClick={(e) => {
         e.preventDefault();
 
@@ -59,12 +59,12 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         alt=""
         width={36}
         height={36}
-        className="h-9 w-9 transition-transform duration-500 group-hover:rotate-[8deg]"
+        className="logo-mark h-9 w-9"
         priority
       />
       {!compact && (
-        <span className="font-display text-[1.35rem] font-bold tracking-tight leading-none">
-          Orveli<span className="text-gold-gradient">ant</span>
+        <span className="brand-wordmark font-display text-[1.4rem] font-semibold leading-none">
+          Orveliant
         </span>
       )}
     </Link>

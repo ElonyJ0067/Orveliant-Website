@@ -38,8 +38,8 @@ export default function Home() {
             </div>
 
             <h1 className="hero-copy-item font-display tracking-tight">
-              <span className="block text-[2.75rem] font-extrabold leading-[0.92] sm:text-6xl md:text-7xl xl:text-8xl">
-                Orveli<span className="text-gold-gradient">ant</span>
+              <span className="brand-wordmark block text-[2.75rem] font-extrabold leading-[0.92] sm:text-6xl md:text-7xl xl:text-8xl">
+                Orveliant
               </span>
               <span className="mt-3 block text-[1.2rem] font-bold leading-[1.22] text-ink sm:mt-5 sm:text-[1.9rem] md:text-3xl xl:text-[2.45rem] [@media(max-height:720px)]:mt-2">
                 Built to <span className="text-gold-gradient">Act on Opportunity.</span>
