@@ -2,50 +2,70 @@
 
 import { useId, useState } from "react";
 import Link from "next/link";
-import { getCareerRole, isValidRoleId } from "@/lib/careers";
+import { applicationLinkCopy, getCareerRole, isValidRoleId, validateApplicationLinks } from "@/lib/careers";
 import { SITE } from "@/lib/site";
 
 type Commitment = "Full-time" | "Part-time";
 
 const COMMITMENTS: Commitment[] = ["Full-time", "Part-time"];
 const MIN_NOTE = 80;
+const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 
 type Props = {
   roleId: string;
 };
 
-function hasUsefulLink(value: string) {
-  const v = value.trim();
-  if (v.length < 8) return false;
-  return /https?:\/\//i.test(v) || v.includes(".");
-}
+const GENERAL_LINK_COPY = {
+  profile: "general" as const,
+  secondLinkLabel: "Portfolio or relevant link",
+  secondLinkPlaceholder: "Work sample or URL",
+  secondLinkRequired: false,
+};
 
 export function CareersForm({ roleId }: Props) {
   const role = isValidRoleId(roleId) ? getCareerRole(roleId) : undefined;
+  const linkCopy = role ? applicationLinkCopy(role) : GENERAL_LINK_COPY;
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resumeName, setResumeName] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
-    phone: "",
     roleId,
     commitment: "Full-time" as Commitment,
     location: "",
-    links: "",
+    linkedin: "",
+    githubOrPortfolio: "",
     experience: "",
     message: "",
   });
   const id = useId();
 
   const set =
-    (k: "name" | "email" | "phone" | "location" | "links" | "experience" | "message") =>
+    (
+      k:
+        | "name"
+        | "email"
+        | "location"
+        | "linkedin"
+        | "githubOrPortfolio"
+        | "experience"
+        | "message",
+    ) =>
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleResumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    setResumeName(file?.name ?? "");
+    setError("");
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+
     if (!form.name.trim()) {
       setError("Please enter your name.");
       return;
@@ -58,20 +78,45 @@ export function CareersForm({ roleId }: Props) {
       setError("Please add your location or timezone.");
       return;
     }
-    if (!hasUsefulLink(form.links)) {
-      setError("Please add a LinkedIn, GitHub, resume, or portfolio URL.");
+    if (role) {
+      const links = validateApplicationLinks(role, form.linkedin, form.githubOrPortfolio);
+      if (!links.ok) {
+        setError(links.error);
+        return;
+      }
+    } else if (!form.linkedin.trim()) {
+      setError("Please add your LinkedIn profile URL.");
       return;
     }
     if (form.message.trim().length < MIN_NOTE) {
       setError("Please write a few sentences about relevant work.");
       return;
     }
+
+    const resumeInput = e.currentTarget.elements.namedItem("resume") as HTMLInputElement | null;
+    const resume = resumeInput?.files?.[0];
+    if (resume && resume.size > MAX_RESUME_BYTES) {
+      setError("Resume must be 5 MB or smaller.");
+      return;
+    }
+
+    const body = new FormData();
+    body.append("name", form.name);
+    body.append("email", form.email);
+    body.append("roleId", form.roleId);
+    body.append("commitment", form.commitment);
+    body.append("location", form.location);
+    body.append("linkedin", form.linkedin);
+    body.append("githubOrPortfolio", form.githubOrPortfolio);
+    body.append("experience", form.experience);
+    body.append("message", form.message);
+    if (resume) body.append("resume", resume);
+
     setLoading(true);
     try {
       const res = await fetch("/api/careers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body,
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Something went wrong.");
@@ -127,7 +172,7 @@ export function CareersForm({ roleId }: Props) {
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-mute">{role.focus}</p>
         ) : (
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-mute">
-            Name, a link we can open, and what you have shipped.
+            LinkedIn, a GitHub or portfolio link, and what you have shipped.
           </p>
         )}
       </div>
@@ -218,24 +263,6 @@ export function CareersForm({ roleId }: Props) {
               className={field}
             />
           </div>
-          <div className="sm:col-span-2 lg:col-span-1">
-            <label htmlFor={`${id}-phone`} className="mb-1.5 block text-sm font-medium text-ink-dim">
-              Phone <span className="font-normal text-ink-mute">(optional)</span>
-            </label>
-            <input
-              id={`${id}-phone`}
-              name="phone"
-              type="tel"
-              autoComplete="tel"
-              value={form.phone}
-              onChange={set("phone")}
-              placeholder="+1 …"
-              className={field}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label
               htmlFor={`${id}-location`}
@@ -254,25 +281,11 @@ export function CareersForm({ roleId }: Props) {
             />
           </div>
           <div>
-            <label htmlFor={`${id}-links`} className="mb-1.5 block text-sm font-medium text-ink-dim">
-              Links
-            </label>
-            <input
-              id={`${id}-links`}
-              name="links"
-              required
-              value={form.links}
-              onChange={set("links")}
-              placeholder="LinkedIn, GitHub, or resume URL"
-              className={field}
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-1">
             <label
               htmlFor={`${id}-experience`}
               className="mb-1.5 block text-sm font-medium text-ink-dim"
             >
-              Experience <span className="font-normal text-ink-mute">(optional)</span>
+              Experience
             </label>
             <input
               id={`${id}-experience`}
@@ -283,6 +296,62 @@ export function CareersForm({ roleId }: Props) {
               className={field}
             />
           </div>
+          <div>
+            <label
+              htmlFor={`${id}-linkedin`}
+              className="mb-1.5 block text-sm font-medium text-ink-dim"
+            >
+              LinkedIn
+            </label>
+            <input
+              id={`${id}-linkedin`}
+              name="linkedin"
+              type="url"
+              required
+              value={form.linkedin}
+              onChange={set("linkedin")}
+              placeholder="linkedin.com/in/..."
+              className={field}
+            />
+          </div>
+          <div>
+            <label
+              htmlFor={`${id}-githubOrPortfolio`}
+              className="mb-1.5 block text-sm font-medium text-ink-dim"
+            >
+              {linkCopy.secondLinkLabel}
+              {!linkCopy.secondLinkRequired ? (
+                <span className="font-normal text-ink-mute"> (optional)</span>
+              ) : null}
+            </label>
+            <input
+              id={`${id}-githubOrPortfolio`}
+              name="githubOrPortfolio"
+              type="url"
+              required={linkCopy.secondLinkRequired}
+              value={form.githubOrPortfolio}
+              onChange={set("githubOrPortfolio")}
+              placeholder={linkCopy.secondLinkPlaceholder}
+              className={field}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label htmlFor={`${id}-resume`} className="mb-1.5 block text-sm font-medium text-ink-dim">
+            Resume upload <span className="font-normal text-ink-mute">(optional)</span>
+          </label>
+          <input
+            id={`${id}-resume`}
+            name="resume"
+            type="file"
+            accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={handleResumeChange}
+            className={`${field} file:mr-3 file:rounded-md file:border-0 file:bg-gold/15 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-gold-light hover:file:bg-gold/25`}
+          />
+          <p className="mt-2 text-xs text-ink-mute">
+            {resumeName ? `Selected: ${resumeName}` : "PDF or Word, up to 5 MB."}
+          </p>
         </div>
 
         <div>

@@ -503,3 +503,64 @@ export function hiringIntro(roles: CareerRole[] = hiringNow()): string {
   const kind = eng ? " engineering" : "";
   return `${count}${kind} ${seat} hiring now. Other roles stay listed — we read a strong profile when the fit is real.`;
 }
+
+export type ApplicationLinkProfile = "technical" | "general";
+
+/** Engineering and product design need a work link; other seats only require LinkedIn. */
+export function roleApplicationProfile(role: CareerRole): ApplicationLinkProfile {
+  if (role.team === "Engineering") return "technical";
+  if (role.id === "product-designer") return "technical";
+  return "general";
+}
+
+export function isUsefulApplicationLink(value: string): boolean {
+  const v = value.trim();
+  if (v.length < 8) return false;
+  return /https?:\/\//i.test(v) || v.includes(".");
+}
+
+export function applicationLinkCopy(role: CareerRole): {
+  profile: ApplicationLinkProfile;
+  secondLinkLabel: string;
+  secondLinkPlaceholder: string;
+  secondLinkRequired: boolean;
+} {
+  if (roleApplicationProfile(role) === "technical") {
+    return {
+      profile: "technical",
+      secondLinkLabel: "GitHub or Portfolio link",
+      secondLinkPlaceholder: "github.com/... or portfolio URL",
+      secondLinkRequired: true,
+    };
+  }
+
+  return {
+    profile: "general",
+    secondLinkLabel: "Portfolio or relevant link",
+    secondLinkPlaceholder: "Work sample or URL",
+    secondLinkRequired: false,
+  };
+}
+
+export function validateApplicationLinks(
+  role: CareerRole,
+  linkedin: string,
+  githubOrPortfolio: string,
+): { ok: true } | { ok: false; error: string } {
+  if (!isUsefulApplicationLink(linkedin)) {
+    return { ok: false, error: "Please add your LinkedIn profile URL." };
+  }
+
+  const { secondLinkRequired } = applicationLinkCopy(role);
+  const secondLink = githubOrPortfolio.trim();
+
+  if (secondLinkRequired && !isUsefulApplicationLink(secondLink)) {
+    return { ok: false, error: "Please add a GitHub or portfolio link." };
+  }
+
+  if (secondLink && !isUsefulApplicationLink(secondLink)) {
+    return { ok: false, error: "Please add a valid portfolio or relevant link." };
+  }
+
+  return { ok: true };
+}

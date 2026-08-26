@@ -85,10 +85,46 @@ export function formatWaitlistAlert(data: {
   ].join("\n");
 }
 
+export async function sendTelegramDocument(
+  file: Blob,
+  filename: string,
+  caption?: string,
+): Promise<boolean> {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim() ?? "";
+  const chatId = process.env.TELEGRAM_CHAT_ID?.trim() ?? "";
+
+  if (!token || !chatId) {
+    console.warn(
+      "[telegram] not configured — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env.local",
+    );
+    return false;
+  }
+
+  try {
+    const body = new FormData();
+    body.append("chat_id", chatId);
+    body.append("document", file, filename);
+    if (caption) body.append("caption", caption);
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+      method: "POST",
+      body,
+    });
+
+    if (!res.ok) {
+      console.error("[telegram] document send failed", res.status, await res.text());
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[telegram] document request failed", err);
+    return false;
+  }
+}
+
 export function formatCareersAlert(data: {
   name: string;
   email: string;
-  phone?: string;
   roleTitle: string;
   team: string;
   path: string;
@@ -97,7 +133,10 @@ export function formatCareersAlert(data: {
   compensationNote?: string;
   location: string;
   experience: string;
-  links: string;
+  linkedin: string;
+  githubOrPortfolio: string;
+  secondLinkLabel?: string;
+  resumeName?: string;
   message: string;
 }): string {
   const roleLabel = `${data.roleTitle} · ${data.team}`;
@@ -110,14 +149,15 @@ export function formatCareersAlert(data: {
     "",
     `<b>Name:</b> ${escapeTelegramHtml(data.name)}`,
     `<b>Email:</b> ${escapeTelegramHtml(data.email)}`,
-    `<b>Phone:</b> ${escapeTelegramHtml(data.phone || "") || "—"}`,
     `<b>Role:</b> ${escapeTelegramHtml(roleLabel)}`,
     `<b>Page:</b> orveliant.com${escapeTelegramHtml(data.path)}`,
     `<b>Commitment:</b> ${escapeTelegramHtml(data.commitment || "Full-time")}`,
     `<b>Comp band:</b> ${escapeTelegramHtml(comp)}`,
     `<b>Location:</b> ${escapeTelegramHtml(data.location) || "—"}`,
     `<b>Experience:</b> ${escapeTelegramHtml(data.experience) || "—"}`,
-    `<b>Links:</b> ${escapeTelegramHtml(data.links) || "—"}`,
+    `<b>LinkedIn:</b> ${escapeTelegramHtml(data.linkedin) || "—"}`,
+    `<b>${escapeTelegramHtml(data.secondLinkLabel || "GitHub / Portfolio")}:</b> ${escapeTelegramHtml(data.githubOrPortfolio) || "—"}`,
+    `<b>Resume:</b> ${escapeTelegramHtml(data.resumeName || "—")}`,
     "",
     "<b>Note:</b>",
     escapeTelegramHtml(data.message),
