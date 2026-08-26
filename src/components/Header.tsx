@@ -11,6 +11,7 @@ const nav = [
   { label: "Markets", href: "/markets" },
   { label: "Desk", href: "/desk" },
   { label: "Security", href: "/security" },
+  { label: "Careers", href: "/careers" },
   { label: "Contact", href: "/contact" },
 ];
 
@@ -58,6 +59,7 @@ export function Header() {
     const pathOnly = href.split("#")[0];
     if (href.startsWith("/#")) return pathname === "/";
     if (pathOnly === "/security") return pathname === "/security" || pathname === "/custody";
+    if (pathOnly === "/careers") return pathname === "/careers" || pathname.startsWith("/careers/");
     return pathname === pathOnly;
   };
 

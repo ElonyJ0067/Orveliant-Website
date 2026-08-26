@@ -83,7 +83,7 @@ export default function RootLayout({
       "@type": "AdministrativeArea",
       name: SITE.location,
     },
-    sameAs: [SITE.social.linkedin],
+    sameAs: [SITE.social.linkedin, SITE.social.github],
   };
 
   return (

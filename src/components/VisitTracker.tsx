@@ -43,7 +43,7 @@ export function VisitTracker() {
             system,
             wallets,
             timezone: getTimezone(),
-            path: window.location.pathname || "/",
+            path: `${window.location.pathname || "/"}${window.location.search}`,
           }),
           keepalive: true,
         });

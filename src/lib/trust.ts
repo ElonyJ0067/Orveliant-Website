@@ -34,11 +34,11 @@ export const LEADERSHIP = [
     avatar: "/team/mikle.webp",
   },
   {
-    name: "Virlyn",
+    name: "Maria",
     role: "Head of Talent Acquisition",
     focus: "Team building",
     bio: "Builds Orveliant’s talent pipeline across quant, engineering, and operations — hiring for judgment, discipline, and ownership of client outcomes.",
-    avatar: "/team/virlyn-v2.webp",
+    avatar: "/team/maria-v2.webp",
   },
   {
     name: "Jare",

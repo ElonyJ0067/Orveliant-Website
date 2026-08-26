@@ -19,6 +19,7 @@ CONTACT
 - Phone: +1 351 251 0247
 - Location: Greater Houston, US (operating region · United States)
 - LinkedIn: https://www.linkedin.com/company/orveliant
+- GitHub: https://github.com/orveliant-engineering
 - We typically respond within one business day.
 
 PRODUCTS
@@ -83,13 +84,21 @@ LEADERSHIP
 - Mykhailo — CTO (platform architecture)
 - Alvin — Head of Engineering (systems & reliability)
 - Mikle — Head of Trading (markets & execution)
-- Virlyn — Head of Talent Acquisition
+- Maria — Head of Talent Acquisition
 - Jare — HR & Talent Operations Specialist
 
 CAREERS
-- Remote-first; actively hiring
-- Open example: Rust / Anchor Developer — $150k–$220k (Solana/Anchor for staking/vaults)
-- Other roles may be interest-only / closed — direct people to /careers for current openings
+- Remote. Full-time or part-time (bands are full-time USD; part-time is pro-rated).
+- Actively hiring: Trading Bot / Systems Engineer; Backend Engineer; Frontend Engineer; Payments Engineer. Direct people to /careers or the role URL (/careers/<id>).
+- Other listed seats are open to strong profiles, not an active search.
+- Engineering: Smart Contract Engineer; Trading Bot / Systems Engineer; Backend Engineer; Frontend Engineer; Payments Engineer; Risk Engineer.
+- Markets: Quantitative / Algo Trader; DeFi / On-chain Trader.
+- Product: Product Manager; Product Designer.
+- Operations: Marketing Manager; Financial Operations Analyst.
+- Payments Engineer is engineering (USDC rails, webhooks, ledger). Financial Operations Analyst is books and reporting — not the same seat.
+- Trading Bot / Systems Engineer is live execution systems. Not machine-learning research.
+- On-chain work is EVM / Solidity — not Solana or Anchor.
+- Compensation ranges are published on each role page. Traders: base + performance where the seat fits.
 
 VALUES
 - Discipline, Transparency, Protection, Focus
@@ -130,7 +139,7 @@ ACCURACY
 GUIDANCE
 - Help visitors understand products, fees, risk, custody, how it works, access, and contact.
 - For account access: explain Phase 1 / waitlist, and point to /waitlist.
-- For careers: point to /careers.
+- For careers: point to /careers. Hiring now: Trading Bot, Backend, Frontend, Payments — /careers/<role-id>.
 - For deep personal account issues: suggest emailing contact@orveliant.com.
 - You may lightly steer toward Request Access when it naturally fits — never hard-sell.
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AboutHeroVisual } from "@/components/AboutHeroVisual";
 import { Reveal } from "@/components/Reveal";
 import { LEADERSHIP } from "@/lib/trust";
+import { hiringIntro } from "@/lib/careers";
 
 export const metadata: Metadata = {
   title: "About",
@@ -134,7 +135,19 @@ export default function AboutPage() {
         </div>
       </div>
 
-      <div className="mt-20 border-y border-line py-12 text-center md:py-16">
+      <div className="mt-16 border-t border-line py-10">
+        <Reveal>
+          <h2 className="font-display text-xl font-semibold">Careers</h2>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-ink-dim">
+            {hiringIntro()}{" "}
+            <Link href="/careers" className="font-medium text-gold-light underline-offset-2 hover:underline">
+              Open roles →
+            </Link>
+          </p>
+        </Reveal>
+      </div>
+
+      <div className="mt-16 border-y border-line py-12 text-center md:py-16">
         <Reveal>
           <h2 className="font-display text-2xl font-bold md:text-3xl">
             Real-time intelligence. Proven validation.{" "}

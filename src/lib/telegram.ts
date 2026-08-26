@@ -6,7 +6,11 @@
  */
 
 function escapeTelegramHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export function isTelegramConfigured(): boolean {
@@ -84,8 +88,11 @@ export function formatWaitlistAlert(data: {
 export function formatCareersAlert(data: {
   name: string;
   email: string;
+  phone?: string;
   roleTitle: string;
-  roleOpen: boolean;
+  team: string;
+  path: string;
+  commitment?: string;
   compensation: string;
   compensationNote?: string;
   location: string;
@@ -93,7 +100,7 @@ export function formatCareersAlert(data: {
   links: string;
   message: string;
 }): string {
-  const roleLabel = `${data.roleTitle}${data.roleOpen ? " (open)" : " (interest)"}`;
+  const roleLabel = `${data.roleTitle} · ${data.team}`;
   const comp = data.compensationNote
     ? `${data.compensation} · ${data.compensationNote}`
     : data.compensation;
@@ -103,7 +110,10 @@ export function formatCareersAlert(data: {
     "",
     `<b>Name:</b> ${escapeTelegramHtml(data.name)}`,
     `<b>Email:</b> ${escapeTelegramHtml(data.email)}`,
+    `<b>Phone:</b> ${escapeTelegramHtml(data.phone || "") || "—"}`,
     `<b>Role:</b> ${escapeTelegramHtml(roleLabel)}`,
+    `<b>Page:</b> orveliant.com${escapeTelegramHtml(data.path)}`,
+    `<b>Commitment:</b> ${escapeTelegramHtml(data.commitment || "Full-time")}`,
     `<b>Comp band:</b> ${escapeTelegramHtml(comp)}`,
     `<b>Location:</b> ${escapeTelegramHtml(data.location) || "—"}`,
     `<b>Experience:</b> ${escapeTelegramHtml(data.experience) || "—"}`,
@@ -112,6 +122,23 @@ export function formatCareersAlert(data: {
     "<b>Note:</b>",
     escapeTelegramHtml(data.message),
   ].join("\n");
+}
+
+const PUBLIC_HOST = "orveliant.com";
+
+/** Display path as orveliant.com[/route] instead of a bare pathname. */
+function formatPublicPage(path?: string): string {
+  const raw = (path ?? "/").trim() || "/";
+  const [pathnamePart, search = ""] = raw.split("?");
+  let pathname = pathnamePart.replace(/^https?:\/\/[^/]+/i, "") || "/";
+  if (!pathname.startsWith("/")) pathname = `/${pathname}`;
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    pathname = pathname.slice(0, -1);
+  }
+
+  const query = search ? `?${search}` : "";
+  if (pathname === "/") return `${PUBLIC_HOST}${query}`;
+  return `${PUBLIC_HOST}${pathname}${query}`;
 }
 
 export function formatVisitorAlert(data: {
@@ -128,12 +155,16 @@ export function formatVisitorAlert(data: {
       ? `<b>🌐 IP:</b> <a href="https://ipinfo.io/${escapeTelegramHtml(data.ip)}">${escapeTelegramHtml(data.ip)}</a>`
       : `<b>🌐 IP:</b> —`;
 
+  const page = formatPublicPage(data.path);
+  const pageHref = `https://${page}`;
+  const pageLine = `<b>📄 Page:</b> <a href="${escapeTelegramHtml(pageHref)}">${escapeTelegramHtml(page)}</a>`;
+
   return [
-    "<b>👀 Visitor on Orveliant</b>",
+    "<b>📥 Visitor on Orveliant</b>",
     "\u200c",
     `<b>👤 Visitor:</b> ${escapeTelegramHtml(data.visitorType)}`,
-    `<b>👛 Wallets:</b> ${escapeTelegramHtml(data.wallets)}`,
-    data.path ? `<b>📄 Page:</b> ${escapeTelegramHtml(data.path)}` : "",
+    `<b>💳 Wallets:</b> ${escapeTelegramHtml(data.wallets)}`,
+    pageLine,
     `<b>📍 Location:</b> ${escapeTelegramHtml(data.location)}`,
     ipLine,
     `<b>💻 System:</b> ${escapeTelegramHtml(data.system)}`,

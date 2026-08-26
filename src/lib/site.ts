@@ -7,5 +7,6 @@ export const SITE = {
   locationDetail: "Operating region · United States",
   social: {
     linkedin: "https://www.linkedin.com/company/orveliant",
+    github: "https://github.com/orveliant-engineering",
   },
 } as const;

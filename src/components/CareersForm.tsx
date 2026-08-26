@@ -1,26 +1,36 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { CAREER_ROLES, OPEN_ROLE, isValidRoleId } from "@/lib/careers";
+import { useId, useState } from "react";
+import Link from "next/link";
+import { getCareerRole, isValidRoleId } from "@/lib/careers";
 import { SITE } from "@/lib/site";
 
+type Commitment = "Full-time" | "Part-time";
+
+const COMMITMENTS: Commitment[] = ["Full-time", "Part-time"];
+const MIN_NOTE = 80;
+
 type Props = {
-  defaultRoleId?: string;
-  /** When true, form sits inside a parent panel (no outer card / duplicate section chrome). */
-  embedded?: boolean;
+  roleId: string;
 };
 
-export function CareersForm({ defaultRoleId, embedded = false }: Props) {
-  const initialRole =
-    defaultRoleId && isValidRoleId(defaultRoleId) ? defaultRoleId : OPEN_ROLE.id;
+function hasUsefulLink(value: string) {
+  const v = value.trim();
+  if (v.length < 8) return false;
+  return /https?:\/\//i.test(v) || v.includes(".");
+}
 
+export function CareersForm({ roleId }: Props) {
+  const role = isValidRoleId(roleId) ? getCareerRole(roleId) : undefined;
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     name: "",
     email: "",
-    roleId: initialRole,
+    phone: "",
+    roleId,
+    commitment: "Full-time" as Commitment,
     location: "",
     links: "",
     experience: "",
@@ -28,15 +38,9 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
   });
   const id = useId();
 
-  useEffect(() => {
-    if (defaultRoleId && isValidRoleId(defaultRoleId)) {
-      setForm((f) => ({ ...f, roleId: defaultRoleId }));
-    }
-  }, [defaultRoleId]);
-
   const set =
-    (k: keyof typeof form) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    (k: "name" | "email" | "phone" | "location" | "links" | "experience" | "message") =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,12 +54,16 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
       setError("Please enter a valid email address.");
       return;
     }
-    if (!isValidRoleId(form.roleId)) {
-      setError("Please select a role.");
+    if (!form.location.trim()) {
+      setError("Please add your location or timezone.");
       return;
     }
-    if (form.message.trim().length < 20) {
-      setError("Please share a short note (at least a few sentences) about your background.");
+    if (!hasUsefulLink(form.links)) {
+      setError("Please add a LinkedIn, GitHub, resume, or portfolio URL.");
+      return;
+    }
+    if (form.message.trim().length < MIN_NOTE) {
+      setError("Please write a few sentences about relevant work.");
       return;
     }
     setLoading(true);
@@ -76,69 +84,108 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
   };
 
   if (submitted) {
-    const role = CAREER_ROLES.find((r) => r.id === form.roleId);
     return (
-      <div
-        className={
-          embedded
-            ? "px-2 py-10 text-center md:px-4 md:py-14"
-            : "card p-8 text-center md:p-10"
-        }
-        role="status"
-      >
-        <div
-          className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full border border-gold/40 bg-gold/10 text-2xl text-gold-light"
-          aria-hidden
-        >
-          ✓
+      <div className="card grid min-h-[16rem] place-items-center p-8 text-center md:p-10" role="status">
+        <div>
+          <div
+            className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full border border-gold/40 bg-gold/10 text-2xl text-gold-light"
+            aria-hidden
+          >
+            ✓
+          </div>
+          <h3 className="font-display text-xl font-semibold">Application received</h3>
+          <p className="mt-2 text-ink-dim">
+            Thank you{form.name ? `, ${form.name}` : ""}. We will review your{" "}
+            {role ? <span className="text-ink">{role.title}</span> : "role"} profile and reply if
+            there is a conversation to have.
+          </p>
+          <Link href="/careers" className="btn-ghost mt-6 inline-block px-6 py-2.5 text-sm text-ink">
+            All roles
+          </Link>
         </div>
-        <h3 className="font-display text-xl font-semibold">Application received</h3>
-        <p className="mt-2 text-ink-dim">
-          Thank you{form.name ? `, ${form.name}` : ""}. We&apos;ll review your{" "}
-          {role ? <span className="text-ink">{role.title}</span> : "role"} profile and reply if
-          there&apos;s a fit.
-        </p>
       </div>
     );
   }
 
   const field =
-    "w-full rounded-lg border border-line bg-canvas/60 px-4 py-3 text-ink outline-none transition-colors placeholder:text-ink-mute/70 focus:border-gold/50 focus-visible:ring-2 focus-visible:ring-gold/40";
-
-  const selected = CAREER_ROLES.find((r) => r.id === form.roleId);
+    "w-full rounded-lg border border-line bg-canvas/60 px-4 py-3 text-ink outline-none transition-colors placeholder:text-ink-mute focus:border-gold/50 focus-visible:ring-2 focus-visible:ring-gold/40";
 
   return (
     <form
       onSubmit={handleSubmit}
-      className={
-        embedded
-          ? "w-full"
-          : "card overflow-hidden p-0 shadow-[0_28px_70px_-40px_rgba(0,0,0,0.85)]"
-      }
+      className="card overflow-hidden p-0 shadow-[0_28px_70px_-40px_rgba(0,0,0,0.85)]"
       noValidate
     >
-      {!embedded && (
-        <div className="border-b border-line px-7 py-6 md:px-8">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light">
-            Application
-          </div>
-          <h2 className="mt-1.5 font-display text-xl font-semibold text-ink md:text-2xl">
-            Apply to Orveliant
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-mute">
-            One form for open roles and general interest. Strong profiles are reviewed even when a
-            seat is not formally posted.
-          </p>
+      <div className="border-b border-line px-7 py-6 md:px-8">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light">
+          Application
         </div>
-      )}
+        <h2 className="mt-1.5 font-display text-xl font-semibold text-ink md:text-2xl">
+          Apply{role ? ` for ${role.title}` : ""}
+        </h2>
+        {role ? (
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-mute">{role.focus}</p>
+        ) : (
+          <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-mute">
+            Name, a link we can open, and what you have shipped.
+          </p>
+        )}
+      </div>
 
-      <div
-        className={
-          embedded
-            ? "grid gap-5 md:gap-6"
-            : "grid gap-5 px-7 py-7 md:px-8 md:py-8"
-        }
-      >
+      <div className="grid gap-5 px-7 py-7 md:gap-6 md:px-8 md:py-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-start">
+          <div>
+            <div className="mb-1.5 text-sm font-medium text-ink-dim">Role</div>
+            <div className="rounded-lg border border-line bg-canvas/60 px-4 py-3">
+              <p className="font-medium text-ink">{role?.title}</p>
+            </div>
+            {role ? (
+              <p className="mt-2 text-xs leading-relaxed text-ink-mute">
+                <span className="text-gold-light">{role.team}</span>
+                {" · "}
+                {role.compensation}
+                {role.compensationNote ? ` · ${role.compensationNote}` : ""}
+                {" · "}
+                {role.location}
+              </p>
+            ) : null}
+            <input type="hidden" name="roleId" value={roleId} />
+          </div>
+          <div>
+            <div
+              id={`${id}-commitment-label`}
+              className="mb-1.5 block text-sm font-medium text-ink-dim"
+            >
+              Commitment
+            </div>
+            <div
+              role="radiogroup"
+              aria-labelledby={`${id}-commitment-label`}
+              className="grid grid-cols-2 gap-2"
+            >
+              {COMMITMENTS.map((option) => {
+                const active = form.commitment === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => setForm((f) => ({ ...f, commitment: option }))}
+                    className={`rounded-lg border px-3 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 ${
+                      active
+                        ? "border-gold/50 bg-gold/10 text-gold-light"
+                        : "border-line bg-canvas/60 text-ink-dim hover:text-ink"
+                    }`}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <label htmlFor={`${id}-name`} className="mb-1.5 block text-sm font-medium text-ink-dim">
@@ -172,35 +219,19 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
             />
           </div>
           <div className="sm:col-span-2 lg:col-span-1">
-            <label htmlFor={`${id}-role`} className="mb-1.5 block text-sm font-medium text-ink-dim">
-              Role
+            <label htmlFor={`${id}-phone`} className="mb-1.5 block text-sm font-medium text-ink-dim">
+              Phone <span className="font-normal text-ink-mute">(optional)</span>
             </label>
-            <select
-              id={`${id}-role`}
-              name="roleId"
-              required
-              value={form.roleId}
-              onChange={set("roleId")}
-              className={`${field} appearance-none bg-[length:1rem] bg-[right_0.85rem_center] bg-no-repeat pr-10`}
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24'%3E%3Cpath stroke='%23e8ce78' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
-              }}
-            >
-              {CAREER_ROLES.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.title}
-                  {role.open ? " — Open" : ""}
-                </option>
-              ))}
-            </select>
-            {selected && (
-              <p className="mt-2 text-xs leading-relaxed text-ink-mute">
-                {selected.compensation}
-                {selected.compensationNote ? ` · ${selected.compensationNote}` : ""} ·{" "}
-                {selected.location}
-                {selected.open ? " · Actively hiring" : " · General interest"}
-              </p>
-            )}
+            <input
+              id={`${id}-phone`}
+              name="phone"
+              type="tel"
+              autoComplete="tel"
+              value={form.phone}
+              onChange={set("phone")}
+              placeholder="+1 …"
+              className={field}
+            />
           </div>
         </div>
 
@@ -215,6 +246,7 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
             <input
               id={`${id}-location`}
               name="location"
+              required
               value={form.location}
               onChange={set("location")}
               placeholder="e.g. US Eastern, UTC+9"
@@ -222,31 +254,32 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
             />
           </div>
           <div>
-            <label
-              htmlFor={`${id}-experience`}
-              className="mb-1.5 block text-sm font-medium text-ink-dim"
-            >
-              Relevant experience
-            </label>
-            <input
-              id={`${id}-experience`}
-              name="experience"
-              value={form.experience}
-              onChange={set("experience")}
-              placeholder="e.g. 5 years Solana / Anchor"
-              className={field}
-            />
-          </div>
-          <div className="sm:col-span-2 lg:col-span-1">
             <label htmlFor={`${id}-links`} className="mb-1.5 block text-sm font-medium text-ink-dim">
               Links
             </label>
             <input
               id={`${id}-links`}
               name="links"
+              required
               value={form.links}
               onChange={set("links")}
-              placeholder="LinkedIn, GitHub, resume, or portfolio"
+              placeholder="LinkedIn, GitHub, or resume URL"
+              className={field}
+            />
+          </div>
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label
+              htmlFor={`${id}-experience`}
+              className="mb-1.5 block text-sm font-medium text-ink-dim"
+            >
+              Experience <span className="font-normal text-ink-mute">(optional)</span>
+            </label>
+            <input
+              id={`${id}-experience`}
+              name="experience"
+              value={form.experience}
+              onChange={set("experience")}
+              placeholder="Years and context"
               className={field}
             />
           </div>
@@ -262,8 +295,8 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
             required
             value={form.message}
             onChange={set("message")}
-            rows={embedded ? 5 : 6}
-            placeholder="Relevant work, systems you've shipped, and why Orveliant fits."
+            rows={5}
+            placeholder="Relevant work you have shipped, and why this seat fits."
             className={`${field} resize-y`}
           />
         </div>
@@ -288,7 +321,7 @@ export function CareersForm({ defaultRoleId, embedded = false }: Props) {
           <p className="text-center text-xs text-ink-mute sm:text-right">
             Prefer email?{" "}
             <a
-              href={`mailto:${SITE.email}?subject=Careers%20application`}
+              href={`mailto:${SITE.email}?subject=${encodeURIComponent(`Careers — ${role?.title ?? "application"}`)}`}
               className="text-gold-light underline-offset-2 hover:underline"
             >
               {SITE.email}

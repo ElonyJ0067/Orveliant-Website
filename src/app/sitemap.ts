@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { CAREER_ROLES } from "@/lib/careers";
 import { POSTS } from "@/lib/posts";
 import { PRODUCTS } from "@/lib/products";
 
@@ -43,5 +44,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...productRoutes, ...postRoutes];
+  const careerRoutes = CAREER_ROLES.map((r) => ({
+    url: `${BASE}/careers/${r.id}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+
+  return [...staticRoutes, ...productRoutes, ...postRoutes, ...careerRoutes];
 }

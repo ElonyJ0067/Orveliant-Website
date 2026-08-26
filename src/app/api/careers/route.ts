@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import { getCareerRole, isValidRoleId } from "@/lib/careers";
+import { getCareerRole, isValidRoleId, careerPath } from "@/lib/careers";
 import { formatCareersAlert, sendTelegramAlert } from "@/lib/telegram";
 
 type Payload = {
   name?: string;
   email?: string;
+  phone?: string;
   roleId?: string;
+  commitment?: string;
   location?: string;
   links?: string;
   experience?: string;
@@ -22,18 +24,32 @@ export async function POST(request: Request) {
 
   const name = (body.name ?? "").trim().slice(0, 120);
   const email = (body.email ?? "").trim().slice(0, 200);
+  const phone = (body.phone ?? "").trim().slice(0, 80);
   const roleId = (body.roleId ?? "").trim().slice(0, 80);
+  const commitmentRaw = (body.commitment ?? "").trim();
+  const commitment =
+    commitmentRaw === "Part-time" || commitmentRaw === "Full-time"
+      ? commitmentRaw
+      : "Full-time";
   const location = (body.location ?? "").trim().slice(0, 120);
   const links = (body.links ?? "").trim().slice(0, 500);
   const experience = (body.experience ?? "").trim().slice(0, 160);
   const message = (body.message ?? "").trim().slice(0, 4000);
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  if (!name || !emailValid || !isValidRoleId(roleId) || message.length < 20) {
+  const linksOk = links.length >= 8 && (/https?:\/\//i.test(links) || links.includes("."));
+  if (
+    !name ||
+    !emailValid ||
+    !isValidRoleId(roleId) ||
+    !location ||
+    !linksOk ||
+    message.length < 80
+  ) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Please provide your name, a valid email, a role, and a brief note.",
+        error: "Please provide your name, email, location, a work link, and a brief note.",
       },
       { status: 422 },
     );
@@ -44,11 +60,13 @@ export async function POST(request: Request) {
   console.log("[careers] application received", {
     name,
     email,
+    phone,
     roleId,
     roleTitle: role.title,
+    team: role.team,
+    commitment,
     location,
     experience,
-    open: role.open,
     at: new Date().toISOString(),
   });
 
@@ -56,8 +74,11 @@ export async function POST(request: Request) {
     formatCareersAlert({
       name,
       email,
+      phone,
       roleTitle: role.title,
-      roleOpen: role.open,
+      team: role.team,
+      path: careerPath(roleId),
+      commitment,
       compensation: role.compensation,
       compensationNote: role.compensationNote,
       location,
