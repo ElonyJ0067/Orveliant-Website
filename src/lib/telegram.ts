@@ -5,8 +5,6 @@
  *   TELEGRAM_CHAT_ID=...
  */
 
-const TELEGRAM_SAFE_LENGTH = 3900;
-
 function escapeTelegramHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -183,49 +181,33 @@ function formatPublicPage(path?: string): string {
   return `${PUBLIC_HOST}${pathname}${query}`;
 }
 
-type ChatTranscriptMessage = {
-  role: "user" | "assistant";
-  content: string;
+type ChatTurnAlert = {
+  visitorMessage: string;
+  assistantReply: string;
+  turn: number;
+  path?: string;
 };
 
-function formatChatBlock(msg: ChatTranscriptMessage): string {
-  const label = msg.role === "user" ? "Visitor" : "Assistant";
-  return `<b>${label}:</b>\n${escapeTelegramHtml(msg.content)}`;
+function truncateChatText(text: string, max = 1800): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}…`;
 }
 
-function fitTelegramLength(header: string[], blocks: string[]): string {
-  const omitted = "<i>…earlier turns omitted</i>";
-  let slice = blocks;
+export function formatChatAlert(data: ChatTurnAlert): string {
+  const page = data.path?.trim() ? formatPublicPage(data.path) : PUBLIC_HOST;
+  const visitor = truncateChatText(data.visitorMessage.trim());
+  const assistant = truncateChatText(data.assistantReply.trim());
 
-  while (slice.length > 0) {
-    const prefix = slice.length < blocks.length ? [omitted, ""] : [];
-    const text = [...header, ...prefix, slice.join("\n\n")].join("\n");
-    if (text.length <= TELEGRAM_SAFE_LENGTH) return text;
-    slice = slice.slice(1);
-  }
-
-  const last = blocks[blocks.length - 1] ?? "";
-  const headerText = [...header, omitted, ""].join("\n");
-  const budget = TELEGRAM_SAFE_LENGTH - headerText.length - 20;
-  if (budget < 80) return headerText.slice(0, TELEGRAM_SAFE_LENGTH);
-
-  const truncated = last.slice(0, budget) + "…";
-  return [...header, omitted, "", truncated].join("\n");
-}
-
-export function formatChatAlert(data: {
-  messages: ChatTranscriptMessage[];
-  path?: string;
-}): string {
-  const header = ["<b>💬 Assistant chat transcript</b>", ""];
-
-  if (data.path?.trim()) {
-    header.push(`<b>Page:</b> ${escapeTelegramHtml(formatPublicPage(data.path))}`);
-    header.push("");
-  }
-
-  const blocks = data.messages.map(formatChatBlock);
-  return fitTelegramLength(header, blocks);
+  return [
+    `<b>💬 New chat turn (${data.turn})</b>`,
+    `<b>Page:</b> ${escapeTelegramHtml(page)}`,
+    "",
+    `<b>Visitor:</b>`,
+    escapeTelegramHtml(visitor),
+    "",
+    `<b>Assistant:</b>`,
+    escapeTelegramHtml(assistant),
+  ].join("\n");
 }
 
 export function formatVisitorAlert(data: {

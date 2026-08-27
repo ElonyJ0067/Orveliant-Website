@@ -205,9 +205,13 @@ export async function POST(request: Request) {
     }
 
     const pagePath = (body.path ?? "").trim().slice(0, 200);
+    const visitorMessage = sanitized[sanitized.length - 1]!.content;
+    const turn = sanitized.filter((m) => m.role === "user").length;
     await sendTelegramAlert(
       formatChatAlert({
-        messages: [...sanitized, { role: "assistant", content: reply }],
+        visitorMessage,
+        assistantReply: reply,
+        turn,
         path: pagePath || undefined,
       }),
     );
