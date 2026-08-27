@@ -336,17 +336,11 @@ export function DeskChart({
     setLoadingMore(true);
     try {
       const oldest = current[0].t;
-      // #region agent log
-      fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/components/intelligence/DeskChart.tsx:loadOlder", message: "desk loadOlder start", data: { coinId, interval, currentLen: current.length, oldestSec: oldest, hasMore: hasMoreRef.current }, timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
       let { bars: older, hasMore: more } = await fetchDeskBars(coinId, interval, {
         endTimeMs: oldest * 1000 - 1,
         limit: HISTORY_PAGE,
       });
       if (gen !== fetchGenRef.current) {
-        // #region agent log
-        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H5", location: "src/components/intelligence/DeskChart.tsx:loadOlder", message: "desk stale loadOlder dropped after fetch", data: { coinId, interval, oldGen: gen, currentGen: fetchGenRef.current }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         return false;
       }
 
@@ -375,9 +369,6 @@ export function DeskChart({
           more = Boolean(busted.json.hasMore);
           ({ bars: merged, added } = mergeBars(current, older));
         }
-        // #region agent log
-        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H2", location: "src/components/intelligence/DeskChart.tsx:loadOlder", message: "desk overlap bust result", data: { coinId, interval, beforeLen: current.length, olderLen: older.length, addedAfterBust: added, bustOk: busted.ok, bustRetryable: busted.json.retryable ?? null }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         if (added <= 0) return false;
       }
       if (gen !== fetchGenRef.current) return false;
@@ -397,9 +388,6 @@ export function DeskChart({
       setBars(merged);
       setHasMore(more);
       hasMoreRef.current = more;
-      // #region agent log
-      fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H4", location: "src/components/intelligence/DeskChart.tsx:loadOlder", message: "desk merge applied", data: { coinId, interval, beforeLen: current.length, olderLen: older.length, mergedLen: merged.length, added, hasMoreFromApi: more, oldestBefore: current[0]?.t ?? null, oldestAfter: merged[0]?.t ?? null }, timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
       return true;
     } catch {
       return false;
@@ -465,9 +453,6 @@ export function DeskChart({
         });
         if (cancelled || gen !== fetchGenRef.current) return;
         if (!next.length) throw new Error("No chart history returned");
-        // #region agent log
-        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/components/intelligence/DeskChart.tsx:initialLoad", message: "desk initial response", data: { coinId, interval, barsLen: next.length, hasMore: more }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         setBars(next);
         setHasMore(more);
         barsRef.current = next;

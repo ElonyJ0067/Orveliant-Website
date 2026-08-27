@@ -210,10 +210,6 @@ export function PriceChart({
         `/api/chart?id=${encodeURIComponent(id)}` +
         `&days=${encodeURIComponent(daysAtStart)}` +
         `&endTime=${oldestSec * 1000 - 1}&pages=4`;
-      // #region agent log
-      fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/components/PriceChart.tsx:loadOlder", message: "price loadOlder start", data: { id, days: daysAtStart, currentLen: current.length, oldestSec, from: logical?.from ?? null, to: logical?.to ?? null, hasMore: hasMoreRef.current }, timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
-
       let { ok, json } = await fetchChartJson<{
         series?: { time: number; value: number }[];
         hasMore?: boolean;
@@ -261,9 +257,6 @@ export function PriceChart({
           added = merged.length - beforeLen;
           json = busted.json;
         }
-        // #region agent log
-        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H2", location: "src/components/PriceChart.tsx:loadOlder", message: "price overlap bust result", data: { id, days: daysAtStart, beforeLen, olderLen: older.length, addedAfterBust: added, bustOk: busted.ok, bustRetryable: busted.json.retryable ?? null }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         if (added <= 0) return false;
       }
 
@@ -302,9 +295,6 @@ export function PriceChart({
       setHigh(s.high);
       setLow(s.low);
       setChartLast(s.chartLast);
-      // #region agent log
-      fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H4", location: "src/components/PriceChart.tsx:loadOlder", message: "price merge applied", data: { id, days: daysAtStart, beforeLen, olderLen: older.length, mergedLen: merged.length, added, hasMoreFromApi: json.hasMore ?? null, oldestBefore: pointTimeSec(current[0].time), oldestAfter: pointTimeSec(merged[0].time) }, timestamp: Date.now() }) }).catch(() => {});
-      // #endregion
       return true;
     } catch {
       return false;
@@ -516,9 +506,6 @@ export function PriceChart({
             value: d.value,
           }),
         );
-        // #region agent log
-        fetch("http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3", { method: "POST", headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "0115ca" }, body: JSON.stringify({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/components/PriceChart.tsx:initialLoad", message: "price initial response", data: { id, days, seriesLen: data.length, hasMore: json.hasMore ?? null, visible: json.visible ?? null }, timestamp: Date.now() }) }).catch(() => {});
-        // #endregion
         visibleBarsRef.current =
           typeof json.visible === "number" && json.visible > 0
             ? json.visible

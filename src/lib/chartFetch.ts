@@ -11,43 +11,6 @@ type CacheEntry = { at: number; status: number; body: unknown };
 const mem = new Map<string, CacheEntry>();
 const inflight = new Map<string, Promise<ChartJsonResult<unknown>>>();
 
-const DEBUG_INGEST =
-  "http://127.0.0.1:7278/ingest/8d2a75ab-c891-410f-a4a3-a04cfb12d6e3";
-
-function postDebugLog(payload: {
-  sessionId: string;
-  runId: string;
-  hypothesisId: string;
-  location: string;
-  message: string;
-  data: Record<string, unknown>;
-  timestamp: number;
-}): void {
-  const body = JSON.stringify(payload);
-  fetch(DEBUG_INGEST, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Debug-Session-Id": "0115ca",
-    },
-    body,
-  }).catch(() => {
-    try {
-      if (
-        typeof navigator !== "undefined" &&
-        typeof navigator.sendBeacon === "function"
-      ) {
-        navigator.sendBeacon(
-          DEBUG_INGEST,
-          new Blob([body], { type: "text/plain;charset=UTF-8" }),
-        );
-      }
-    } catch {
-      /* ignore debug transport fallback errors */
-    }
-  });
-}
-
 /** Cap concurrent older-history fetches (warm + scroll share capacity). */
 const HISTORY_CONCURRENCY = 2;
 let historyActive = 0;
@@ -146,32 +109,6 @@ async function fetchChartJsonInner<T extends object>(
   for (let i = 0; i <= retries; i++) {
     try {
       const result = await fetchChartJsonOnce<T>(url, { bust: bust || i > 0 });
-      if (typeof window !== "undefined") {
-        const payload = result.json as {
-          hasMore?: boolean;
-          retryable?: boolean;
-          series?: unknown[];
-          bars?: unknown[];
-        };
-        let endTime: string | null = null;
-        let pages: string | null = null;
-        let id: string | null = null;
-        let days: string | null = null;
-        let interval: string | null = null;
-        try {
-          const parsed = new URL(url, window.location.origin);
-          endTime = parsed.searchParams.get("endTime");
-          pages = parsed.searchParams.get("pages");
-          id = parsed.searchParams.get("id");
-          days = parsed.searchParams.get("days");
-          interval = parsed.searchParams.get("interval");
-        } catch {
-          /* ignore malformed debug URL parse */
-        }
-        // #region agent log
-        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H1", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch attempt result", data: { path: url.split("?")[0], id, days, interval, isHistory: isHistoryUrl(url), endTime, pages, attempt: i, retries, bust: Boolean(bust || i > 0), ok: result.ok, status: result.status, retryable: Boolean(payload.retryable), hasMore: payload.hasMore ?? null, seriesLen: Array.isArray(payload.series) ? payload.series.length : null, barsLen: Array.isArray(payload.bars) ? payload.bars.length : null }, timestamp: Date.now() });
-        // #endregion
-      }
       if (result.ok) return result;
       lastFail = result;
       if (isRetryablePayload(result.status, result.json) && i < retries) {
@@ -181,22 +118,6 @@ async function fetchChartJsonInner<T extends object>(
       }
       return result;
     } catch (err) {
-      if (typeof window !== "undefined") {
-        let id: string | null = null;
-        let days: string | null = null;
-        let interval: string | null = null;
-        try {
-          const parsed = new URL(url, window.location.origin);
-          id = parsed.searchParams.get("id");
-          days = parsed.searchParams.get("days");
-          interval = parsed.searchParams.get("interval");
-        } catch {
-          /* ignore malformed debug URL parse */
-        }
-        // #region agent log
-        postDebugLog({ sessionId: "0115ca", runId: "pre-fix", hypothesisId: "H3", location: "src/lib/chartFetch.ts:fetchChartJsonInner", message: "chart fetch threw error", data: { path: url.split("?")[0], id, days, interval, isHistory: isHistoryUrl(url), attempt: i, retries, bust: Boolean(bust || i > 0), error: err instanceof Error ? err.message : String(err) }, timestamp: Date.now() });
-        // #endregion
-      }
       lastErr = err;
       if (i < retries) {
         await sleep(100 * (i + 1));
