@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { buildSystemPrompt, CHAT_MODEL } from "@/lib/chatKnowledge";
+import { formatChatAlert, sendTelegramAlert } from "@/lib/telegram";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,7 @@ type ChatMessage = {
 
 type Payload = {
   messages?: ChatMessage[];
+  path?: string;
 };
 
 type GroqChoiceMessage = {
@@ -201,6 +203,14 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
+
+    const pagePath = (body.path ?? "").trim().slice(0, 200);
+    await sendTelegramAlert(
+      formatChatAlert({
+        messages: [...sanitized, { role: "assistant", content: reply }],
+        path: pagePath || undefined,
+      }),
+    );
 
     return NextResponse.json({ ok: true, reply });
   } catch (err) {

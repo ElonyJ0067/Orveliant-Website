@@ -81,7 +81,13 @@ export async function POST(request: Request) {
   // Include local/private IPs too — critical for same-PC local testing (127.0.0.1)
   const ipKey = ip !== "unknown" ? ip : null;
 
-  const result = await markVisitorSeen(deviceKey, ipKey);
+  let result: Awaited<ReturnType<typeof markVisitorSeen>>;
+  try {
+    result = await markVisitorSeen(deviceKey, ipKey);
+  } catch (err) {
+    console.error("[visit] markVisitorSeen failed", err);
+    result = { returning: false, knownDevice: false, knownIp: false };
+  }
   const visitorType = result.returning ? "Returning user" : "New user";
 
   const system = (body.system ?? "Unknown").trim().slice(0, 160);
