@@ -9,9 +9,7 @@ import { CareersForm } from "@/components/CareersForm";
 import { Reveal } from "@/components/Reveal";
 import {
   CAREER_ROLES,
-  CAREERS_POSTED,
   careerPath,
-  compensationRangeUsd,
   getCareerRole,
   hiringNow,
   roleAbout,
@@ -44,43 +42,6 @@ export async function generateMetadata({
   };
 }
 
-function jobPostingJsonLd(role: NonNullable<ReturnType<typeof getCareerRole>>) {
-  const range = compensationRangeUsd(role.compensation);
-  const salary = range
-    ? {
-        baseSalary: {
-          "@type": "MonetaryAmount",
-          currency: "USD",
-          value: {
-            "@type": "QuantitativeValue",
-            minValue: range.min,
-            maxValue: range.max,
-            unitText: "YEAR",
-          },
-        },
-      }
-    : {};
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "JobPosting",
-    title: role.title,
-    description: `${roleSummary(role)} ${role.focus}`,
-    datePosted: CAREERS_POSTED,
-    employmentType: ["FULL_TIME", "PART_TIME"],
-    hiringOrganization: {
-      "@type": "Organization",
-      name: "Ocean Park Asset",
-      sameAs: "https://oceanparkasset.com",
-      url: "https://oceanparkasset.com",
-    },
-    jobLocationType: "TELECOMMUTE",
-    directApply: true,
-    url: `https://oceanparkasset.com${careerPath(role.id)}`,
-    ...salary,
-  };
-}
-
 export default async function CareerRolePage({
   params,
 }: {
@@ -106,13 +67,6 @@ export default async function CareerRolePage({
 
   return (
     <div className="container-x py-16 md:py-20">
-      {role.hiring === "now" ? (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd(role)) }}
-        />
-      ) : null}
-
       <CareerStickyApply title={role.title} />
 
       <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-16 xl:grid-cols-[minmax(0,1fr)_20rem]">
