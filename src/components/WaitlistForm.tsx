@@ -124,7 +124,7 @@ export function WaitlistForm() {
           {loading ? "Submitting…" : "Request Access"}
         </button>
         <p className="text-center text-xs text-ink-mute">
-          By joining, you agree to receive updates from Orveliant. No spam. Unsubscribe anytime.
+          By joining, you agree to receive updates from Ocean Park Asset. No spam. Unsubscribe anytime.
         </p>
       </div>
     </form>

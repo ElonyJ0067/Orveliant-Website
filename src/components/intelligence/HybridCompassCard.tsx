@@ -21,7 +21,7 @@ export function HybridCompassCard({
         <p className="mt-3 text-sm leading-relaxed text-ink-dim">{hybrid.rationale}</p>
         <p className="mt-4 text-xs leading-relaxed text-ink-mute">
           Driven by Regime Gate <strong className="text-ink">{regime.state}</strong> (score{" "}
-          {regime.score}). Unique to Orveliant’s Trading · Staking · Hybrid stack.
+          {regime.score}). Unique to Ocean Park Asset’s Trading · Staking · Hybrid stack.
         </p>
       </div>
 

@@ -9,35 +9,35 @@ export const LEADERSHIP = [
     name: "Januario Ximenes",
     role: "Chief Executive Officer",
     focus: "Vision & capital strategy",
-    bio: "Sets Orveliant’s direction across product, capital, and client relationships — keeping growth disciplined and the platform accountable to real market outcomes.",
+    bio: "Sets Ocean Park Asset’s direction across product, capital, and client relationships — keeping growth disciplined and the platform accountable to real market outcomes.",
     avatar: "/team/januario-ximenes.webp",
   },
   {
     name: "Mykhailo",
     role: "Chief Technology Officer",
     focus: "Platform architecture",
-    bio: "Owns the technical architecture behind Orveliant’s intelligence and execution stack — from data pipelines to the systems that keep risk controls in the live path.",
+    bio: "Owns the technical architecture behind Ocean Park Asset’s intelligence and execution stack — from data pipelines to the systems that keep risk controls in the live path.",
     avatar: "/team/mykhailo.webp",
   },
   {
     name: "Alvin",
     role: "Head of Engineering",
     focus: "Systems & reliability",
-    bio: "Leads the engineering team that builds and operates Orveliant’s infrastructure — market data, order routing, observability, and always-on reliability.",
+    bio: "Leads the engineering team that builds and operates Ocean Park Asset’s infrastructure — market data, order routing, observability, and always-on reliability.",
     avatar: "/team/alvin.webp",
   },
   {
     name: "Mikle",
     role: "Head of Trading",
     focus: "Markets & execution",
-    bio: "Directs trading strategy and live execution standards — aligning signal quality, position sizing, and market conditions with Orveliant’s risk framework.",
+    bio: "Directs trading strategy and live execution standards — aligning signal quality, position sizing, and market conditions with Ocean Park Asset’s risk framework.",
     avatar: "/team/mikle.webp",
   },
   {
     name: "Maria",
     role: "Head of Talent Acquisition",
     focus: "Team building",
-    bio: "Builds Orveliant’s talent pipeline across quant, engineering, and operations — hiring for judgment, discipline, and ownership of client outcomes.",
+    bio: "Builds Ocean Park Asset’s talent pipeline across quant, engineering, and operations — hiring for judgment, discipline, and ownership of client outcomes.",
     avatar: "/team/maria-v2.webp",
   },
   {
@@ -53,7 +53,7 @@ export const TESTIMONIALS = [
   {
     benefit: "Real trading profit — with risk rails on",
     quote:
-      "In the pilot quarter my Quant account booked real realized profit I could withdraw — not paper gains. When volatility spiked, Orveliant cut exposure and protected that money instead of giving it back.",
+      "In the pilot quarter my Quant account booked real realized profit I could withdraw — not paper gains. When volatility spiked, Ocean Park Asset cut exposure and protected that money instead of giving it back.",
     name: "Arjun P.",
     role: "Private client · AI Quant Trading",
     detail: "Pilot cohort · Singapore",
@@ -98,7 +98,7 @@ export const TESTIMONIALS = [
   {
     benefit: "Profit plus time back",
     quote:
-      "Before Orveliant I watched markets constantly and still underperformed. In the pilot Hybrid delivered real money to the balance while exposure caps and stops ran automatically. The benefit was profit I could count — and hours I got back.",
+      "Before Ocean Park Asset I watched markets constantly and still underperformed. In the pilot Hybrid delivered real money to the balance while exposure caps and stops ran automatically. The benefit was profit I could count — and hours I got back.",
     name: "Sofia M.",
     role: "Private client · Hybrid",
     detail: "Pilot cohort · Lisbon",
@@ -109,7 +109,7 @@ export const TESTIMONIALS = [
 export const CUSTODY_STACK = [
   {
     title: "Segregated client wallets",
-    body: "Client balances are held in wallets dedicated to client assets — never mixed with Orveliant operating funds or company treasury.",
+    body: "Client balances are held in wallets dedicated to client assets — never mixed with Ocean Park Asset operating funds or company treasury.",
   },
   {
     title: "Cold-majority storage",
@@ -158,12 +158,12 @@ export const CUSTODY_PARTNERS = [
 
 export const CUSTODY_FAQS = [
   {
-    q: "Can Orveliant take or lose my funds operationally?",
+    q: "Can Ocean Park Asset take or lose my funds operationally?",
     a: "Client funds are segregated, cold-majority stored, and movable only under MPC dual-control with allowlisted withdrawals. Trading and staking still carry market risk — managed by automated risk controls, never guaranteed away.",
   },
   {
     q: "Where are my assets held?",
-    a: "In Orveliant’s custody stack: cold storage for the majority, MPC-controlled hot wallets for day-to-day operations, plus restricted exchange accounts for execution and disclosed staking rails for yield strategies.",
+    a: "In Ocean Park Asset’s custody stack: cold storage for the majority, MPC-controlled hot wallets for day-to-day operations, plus restricted exchange accounts for execution and disclosed staking rails for yield strategies.",
   },
   {
     q: "Who are your custodial partners?",

@@ -7,7 +7,7 @@ import { formatDate, POSTS } from "@/lib/posts";
 export const metadata: Metadata = {
   title: "Insights",
   description:
-    "Perspectives on disciplined, risk-controlled AI investing — strategy, methodology, and market thinking from the Orveliant team.",
+    "Perspectives on disciplined, risk-controlled AI investing — strategy, methodology, and market thinking from the Ocean Park Asset team.",
 };
 
 export default function InsightsPage() {
@@ -16,7 +16,7 @@ export default function InsightsPage() {
       <SectionHeading
         eyebrow="Insights"
         title={<>Thinking on <span className="text-gold-gradient">disciplined investing.</span></>}
-        subtitle="Strategy, methodology, and market perspective from the Orveliant team — no hype, just clarity."
+        subtitle="Strategy, methodology, and market perspective from the Ocean Park Asset team — no hype, just clarity."
       />
 
       <div className="mt-12 grid gap-6 md:grid-cols-3">

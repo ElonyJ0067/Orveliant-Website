@@ -11,17 +11,17 @@ export const LEVEL_DEFINITIONS = {
 
 export const MODEL_DEFINITIONS = {
   pressure:
-    "Orveliant Pressure — wick rejection bias × √volume on each bar. Positive = bid absorption bias.",
+    "Ocean Park Asset Pressure — wick rejection bias × √volume on each bar. Positive = bid absorption bias.",
   regimePulse:
-    "Orveliant Regime Pulse — short-horizon calm/stress score (0–100) from return volatility. Not RSI.",
+    "Ocean Park Asset Regime Pulse — short-horizon calm/stress score (0–100) from return volatility. Not RSI.",
   absorption:
-    "Orveliant Absorption Sentinel — LBAF/LAAF failed sweeps from 1h wick + relative volume geometry.",
+    "Ocean Park Asset Absorption Sentinel — LBAF/LAAF failed sweeps from 1h wick + relative volume geometry.",
   magnets:
-    "Orveliant Magnet Map — equal high/low liquidity pools and 3-candle fair value gaps on 1h.",
+    "Ocean Park Asset Magnet Map — equal high/low liquidity pools and 3-candle fair value gaps on 1h.",
   regimeGate:
-    "Orveliant Regime Gate — risk permission from realized vol, local drawdown, trend clarity, and recent absorption.",
+    "Ocean Park Asset Regime Gate — risk permission from realized vol, local drawdown, trend clarity, and recent absorption.",
   hybrid:
-    "Orveliant Hybrid Compass — Trading vs Staking tilt implied by Regime Gate. Not a portfolio allocator.",
+    "Ocean Park Asset Hybrid Compass — Trading vs Staking tilt implied by Regime Gate. Not a portfolio allocator.",
   flow: "Exchange aggressor flow — Binance aggTrades buy/sell volume over the last 5 minutes.",
   candles: "Exchange OHLC — Binance spot klines for the selected chart timeframe.",
   structure: "Structure Atlas — session levels from Binance spot 1h bars (UTC sessions).",

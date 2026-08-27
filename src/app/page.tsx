@@ -38,8 +38,8 @@ export default function Home() {
             </div>
 
             <h1 className="hero-copy-item font-display tracking-tight">
-              <span className="brand-wordmark block text-[2.75rem] font-extrabold leading-[0.92] sm:text-6xl md:text-7xl xl:text-8xl">
-                Orveliant
+              <span className="brand-wordmark block text-[2.15rem] font-extrabold leading-[1.02] sm:text-5xl md:text-6xl xl:text-[4.25rem]">
+                Ocean Park Asset
               </span>
               <span className="mt-3 block text-[1.2rem] font-bold leading-[1.22] text-ink sm:mt-5 sm:text-[1.9rem] md:text-3xl xl:text-[2.45rem] [@media(max-height:720px)]:mt-2">
                 Built to <span className="text-gold-gradient">Act on Opportunity.</span>
@@ -119,7 +119,7 @@ export default function Home() {
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-ink-dim leading-relaxed">
               Join the early-access list and be first to activate Trading, Staking, or
-              Hybrid on Orveliant.
+              Hybrid on Ocean Park Asset.
             </p>
             <div className="mx-auto mt-8 grid w-full max-w-sm grid-cols-1 gap-4 sm:max-w-lg sm:grid-cols-2">
               <Link href="/waitlist" className="btn-gold justify-center">

@@ -7,7 +7,7 @@ import { Reveal } from "@/components/Reveal";
 export const metadata: Metadata = {
   title: "Intelligence Desk",
   description:
-    "Orveliant’s proprietary market desk: Regime Gate, Structure Atlas, Absorption Sentinel, Liquidity Magnets, and Hybrid Compass — structural tools aligned with Trading, Staking and Hybrid.",
+    "Ocean Park Asset’s proprietary market desk: Regime Gate, Structure Atlas, Absorption Sentinel, Liquidity Magnets, and Hybrid Compass — structural tools aligned with Trading, Staking and Hybrid.",
 };
 
 export default function DeskPage() {
@@ -17,7 +17,7 @@ export default function DeskPage() {
         <Reveal>
           <div className="eyebrow mb-5">Not another indicator pack</div>
           <h1 className="font-display text-3xl sm:text-4xl md:text-[2.6rem] font-bold leading-[1.15] tracking-tight">
-            Tools built for how Orveliant{" "}
+            Tools built for how Ocean Park Asset{" "}
             <span className="text-gold-gradient">actually decides.</span>
           </h1>
           <p className="mt-6 max-w-xl text-lg leading-[1.7] text-ink-dim">

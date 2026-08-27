@@ -6,7 +6,7 @@ export function AboutHeroVisual() {
     <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-line bg-canvas">
       <Image
         src="/images/desk-visual.webp"
-        alt="Orveliant Intelligence Desk — market structure and disciplined execution view"
+        alt="Ocean Park Asset Intelligence Desk — market structure and disciplined execution view"
         fill
         priority
         quality={92}

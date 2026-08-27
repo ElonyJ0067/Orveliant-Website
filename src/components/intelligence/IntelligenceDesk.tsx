@@ -20,7 +20,7 @@ const TOOLS = [
     id: "regime",
     name: "Regime Gate",
     tag: "Risk posture",
-    blurb: "Orveliant’s entry permission layer — OPEN, TIGHTENED, or CLOSED.",
+    blurb: "Ocean Park Asset’s entry permission layer — OPEN, TIGHTENED, or CLOSED.",
   },
   {
     id: "structure",
@@ -165,7 +165,7 @@ export function IntelligenceDesk() {
     <div className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="eyebrow mb-2">Orveliant proprietary</div>
+          <div className="eyebrow mb-2">Ocean Park Asset proprietary</div>
           <h2 className="font-display text-2xl font-bold md:text-3xl">
             Intelligence <span className="text-gold-gradient">Desk</span>
           </h2>
@@ -340,7 +340,7 @@ export function IntelligenceDesk() {
                       Structure levels · 1h UTC sessions
                     </div>
                     <div className="text-[10px] text-ink-mute">
-                      Exchange OHLC on chart TF · Orveliant models labeled on panes
+                      Exchange OHLC on chart TF · Ocean Park Asset models labeled on panes
                     </div>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -403,12 +403,12 @@ export function IntelligenceDesk() {
         <div className="mt-4 grid gap-4 border-t border-line pt-4 text-sm leading-relaxed text-ink-dim sm:grid-cols-3">
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gold-light">
-              Exchange vs Orveliant
+              Exchange vs Ocean Park Asset
             </div>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-mute">
               Candles, volume, and 5m flow are Binance spot facts. Structure levels (PDH/PDL,
               session POC/VAH/VAL, WPOC) are measured on 1h UTC sessions. Pressure, Pulse, Absorption,
-              Magnets, Regime Gate, and Hybrid are Orveliant models — defined on the desk.
+              Magnets, Regime Gate, and Hybrid are Ocean Park Asset models — defined on the desk.
             </p>
           </div>
           <div>

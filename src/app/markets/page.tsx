@@ -7,7 +7,7 @@ import { Reveal } from "@/components/Reveal";
 export const metadata: Metadata = {
   title: "Markets",
   description:
-    "Live prices and professional charts for the curated, high-liquidity assets Orveliant supports across Trading, Staking and Hybrid strategies.",
+    "Live prices and professional charts for the curated, high-liquidity assets Ocean Park Asset supports across Trading, Staking and Hybrid strategies.",
 };
 
 export default function MarketsPage() {

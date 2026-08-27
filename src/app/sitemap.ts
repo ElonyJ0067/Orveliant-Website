@@ -3,7 +3,7 @@ import { CAREER_ROLES } from "@/lib/careers";
 import { POSTS } from "@/lib/posts";
 import { PRODUCTS } from "@/lib/products";
 
-const BASE = "https://orveliant.com";
+const BASE = "https://oceanparkasset.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes = [

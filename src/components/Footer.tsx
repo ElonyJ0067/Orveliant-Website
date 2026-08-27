@@ -150,7 +150,7 @@ export function Footer() {
                 href={SITE.social.linkedin}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Orveliant on LinkedIn (opens in a new tab)"
+                aria-label="Ocean Park Asset on LinkedIn (opens in a new tab)"
                 className="inline-flex items-center gap-2 text-[12.5px] text-ink-mute transition-colors duration-200 hover:text-ink"
               >
                 <LinkedInIcon className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function Footer() {
                 href={SITE.social.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label="Orveliant on GitHub (opens in a new tab)"
+                aria-label="Ocean Park Asset on GitHub (opens in a new tab)"
                 className="inline-flex items-center gap-2 text-[12.5px] text-ink-mute transition-colors duration-200 hover:text-ink"
               >
                 <GitHubIcon className="h-4 w-4" />
@@ -172,7 +172,7 @@ export function Footer() {
           <div className="mt-7 flex flex-col gap-4 border-t border-line/50 pt-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
               <p className="shrink-0 text-[11px] text-ink-mute">
-                © {year} Orveliant. All rights reserved.
+                © {year} Ocean Park Asset Management. All rights reserved.
               </p>
               <nav aria-label="Legal" className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 {legalLinks.map((l) => (

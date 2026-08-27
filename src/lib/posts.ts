@@ -20,7 +20,7 @@ export const POSTS: Post[] = [
     body: [
       "In crypto, attention flows to bold predictions — the next 10x, the perfect top or bottom. But the traders who survive multiple cycles rarely win by predicting better. They win by losing smaller.",
       "Risk control is the discipline of deciding, in advance, how much you are willing to lose on any position, any day, and across the whole portfolio — and then enforcing those limits without emotion.",
-      "At Orveliant, every position operates inside a layered defense system: automated stop-losses, maximum exposure caps, daily loss limits, drawdown protection, bounded leverage, and changing-market detection that can pause trading entirely.",
+      "At Ocean Park Asset, every position operates inside a layered defense system: automated stop-losses, maximum exposure caps, daily loss limits, drawdown protection, bounded leverage, and changing-market detection that can pause trading entirely.",
       "Why does this matter more than a great entry? Because losses compound asymmetrically. A 50% drawdown requires a 100% gain to recover. Keeping losses small keeps you in the game long enough for your edge to play out.",
       "This is the core of our approach: act on opportunity, but let protection lead. Growth is only meaningful if it survives the bad days.",
     ],
@@ -34,7 +34,7 @@ export const POSTS: Post[] = [
     readingTime: "4 min read",
     category: "Strategy",
     body: [
-      "Orveliant offers three strategies. They are not competing products — they are different risk-and-return profiles for different goals.",
+      "Ocean Park Asset offers three strategies. They are not competing products — they are different risk-and-return profiles for different goals.",
       "AI Quant Trading is the most active. The system continuously seeks opportunities and executes with strict risk control. It suits those comfortable with market exposure in pursuit of growth.",
       "Staking is the most stable. Your assets earn transparent, on-chain yield from real staking. Yields are variable, not guaranteed, but the approach is steadier than active trading.",
       "Hybrid is for those who want balance without micromanaging it. You choose a risk profile, and the AI automatically allocates between Trading and Staking — rebalancing as market conditions change.",

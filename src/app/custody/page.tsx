@@ -8,7 +8,7 @@ import { CUSTODY_FAQS, CUSTODY_PARTNERS, CUSTODY_STACK } from "@/lib/trust";
 export const metadata: Metadata = {
   title: "Fund Safety & Custody",
   description:
-    "How Orveliant safeguards client capital: segregated wallets, cold-majority storage, MPC dual control, allowlisted withdrawals, and transparent operations.",
+    "How Ocean Park Asset safeguards client capital: segregated wallets, cold-majority storage, MPC dual control, allowlisted withdrawals, and transparent operations.",
 };
 
 export default function CustodyPage() {
@@ -21,7 +21,7 @@ export default function CustodyPage() {
             Your capital, <span className="text-gold-gradient">protected by design.</span>
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-dim">
-            Before performance comes protection. Orveliant’s custody stack keeps client assets
+            Before performance comes protection. Ocean Park Asset’s custody stack keeps client assets
             segregated, cold-majority stored, and movable only under dual-control, allowlisted
             procedures.
           </p>
@@ -93,7 +93,7 @@ export default function CustodyPage() {
         <Reveal>
           <p className="text-sm leading-relaxed text-ink-mute">
             Digital-asset trading and staking involve risk, including possible loss of capital.
-            Market risk is managed by Orveliant&apos;s automated controls; it is never eliminated.
+            Market risk is managed by Ocean Park Asset&apos;s automated controls; it is never eliminated.
             Jurisdiction, account eligibility, and the exact exchange or staking counterparties
             for your assets are confirmed when your account is activated.
           </p>

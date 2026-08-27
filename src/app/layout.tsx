@@ -26,32 +26,32 @@ const ibmPlexSans = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://orveliant.com"),
+  metadataBase: new URL("https://oceanparkasset.com"),
   title: {
-    default: "Orveliant — Disciplined AI Crypto Trading, Staking & Hybrid",
-    template: "%s · Orveliant",
+    default: "Ocean Park Asset — Disciplined AI Crypto Trading, Staking & Hybrid",
+    template: "%s · Ocean Park Asset",
   },
   description:
-    "Orveliant is a risk-controlled AI investment platform. Choose AI Quant Trading, Staking, or an intelligent Hybrid strategy — capital growth engineered with strict, automated risk control.",
+    "Ocean Park Asset is a risk-controlled AI investment platform. Choose AI Quant Trading, Staking, or an intelligent Hybrid strategy — capital growth engineered with strict, automated risk control.",
   keywords: [
     "AI trading",
     "crypto staking",
     "quant trading",
     "risk-controlled trading",
-    "Orveliant",
+    "Ocean Park Asset",
     "hybrid crypto strategy",
   ],
   openGraph: {
-    title: "Orveliant — Disciplined AI Crypto Trading, Staking & Hybrid",
+    title: "Ocean Park Asset — Disciplined AI Crypto Trading, Staking & Hybrid",
     description:
       "Risk-controlled AI investing across Trading, Staking and Hybrid strategies.",
-    url: "https://orveliant.com",
-    siteName: "Orveliant",
+    url: "https://oceanparkasset.com",
+    siteName: "Ocean Park Asset",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Orveliant — Disciplined AI Crypto Trading, Staking & Hybrid",
+    title: "Ocean Park Asset — Disciplined AI Crypto Trading, Staking & Hybrid",
     description:
       "Risk-controlled AI investing across Trading, Staking and Hybrid strategies.",
   },
@@ -65,9 +65,9 @@ export default function RootLayout({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Orveliant",
-    url: "https://orveliant.com",
-    logo: "https://orveliant.com/logo.png",
+    name: "Ocean Park Asset",
+    url: "https://oceanparkasset.com",
+    logo: "https://oceanparkasset.com/logo.png",
     description:
       "Disciplined, risk-controlled AI investing across Trading, Staking and Hybrid strategies.",
     slogan: "Built to Act on Opportunity. Engineered to Control Risk.",
@@ -75,8 +75,8 @@ export default function RootLayout({
     telephone: SITE.phone,
     address: {
       "@type": "PostalAddress",
-      addressLocality: "Houston",
-      addressRegion: "TX",
+      addressLocality: "Santa Monica",
+      addressRegion: "CA",
       addressCountry: "US",
     },
     areaServed: {

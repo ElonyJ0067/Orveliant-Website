@@ -40,6 +40,14 @@ type GroqChatResponse = {
 const MAX_MESSAGES = 20;
 const MAX_CONTENT = 2000;
 
+/** Models sometimes emit U+202F / NBSP between brand words; normalize for UI. */
+function normalizeReply(text: string): string {
+  return text
+    .replace(/[\u00A0\u202F\u2007\u2008\u2009\u200A\u205F\u3000]/g, " ")
+    .replace(/[\u200B\u200C\u200D\uFEFF]/g, "")
+    .trim();
+}
+
 async function groqViaFetch(payload: Record<string, unknown>): Promise<GroqChatResponse> {
   const groqRes = await fetch(GROQ_URL, {
     method: "POST",
@@ -77,6 +85,7 @@ async function groqViaPowerShell(payload: Record<string, unknown>): Promise<Groq
   const encodedBody = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
   const encodedKey = Buffer.from(groqApiKey(), "utf8").toString("base64");
 
+  // Return base64 so Windows console code pages cannot turn Unicode/spaces into "?".
   const script = `
 $ErrorActionPreference = 'Stop'
 $key = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedKey}'))
@@ -84,7 +93,7 @@ $json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encodedBo
 $bytes = [Text.Encoding]::UTF8.GetBytes($json)
 $web = [Net.HttpWebRequest]::Create('${GROQ_URL}')
 $web.Method = 'POST'
-$web.ContentType = 'application/json'
+$web.ContentType = 'application/json; charset=utf-8'
 $web.Accept = 'application/json'
 $web.Timeout = 90000
 $web.ReadWriteTimeout = 90000
@@ -99,23 +108,24 @@ try {
 } catch [Net.WebException] {
   if ($_.Exception.Response) { $resp = $_.Exception.Response } else { throw }
 }
-$reader = New-Object IO.StreamReader($resp.GetResponseStream(), [Text.Encoding]::UTF8)
-$reader.ReadToEnd()
-$reader.Close()
+$ms = New-Object IO.MemoryStream
+$resp.GetResponseStream().CopyTo($ms)
 $resp.Close()
+[Convert]::ToBase64String($ms.ToArray())
 `.trim();
 
   const { stdout, stderr } = await execFileAsync(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
-    { timeout: 90_000, windowsHide: true, maxBuffer: 8 * 1024 * 1024 },
+    { timeout: 90_000, windowsHide: true, maxBuffer: 8 * 1024 * 1024, encoding: "utf8" },
   );
 
   if (stderr?.trim()) {
     console.warn("[chat] powershell stderr", stderr.slice(0, 300));
   }
 
-  const parsed = JSON.parse(stdout.trim()) as GroqChatResponse;
+  const rawJson = Buffer.from(stdout.trim(), "base64").toString("utf8");
+  const parsed = JSON.parse(rawJson) as GroqChatResponse;
   if (parsed.error?.message) {
     throw new Error(parsed.error.message);
   }
@@ -183,7 +193,7 @@ export async function POST(request: Request) {
       reasoning_effort: "low",
     });
 
-    const reply = (parsed.choices?.[0]?.message?.content ?? "").trim();
+    const reply = normalizeReply(parsed.choices?.[0]?.message?.content ?? "");
     if (!reply) {
       console.error("[chat] empty content from model");
       return NextResponse.json(

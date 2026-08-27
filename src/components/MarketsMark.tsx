@@ -26,7 +26,7 @@ export function MarketsMark() {
   return (
     <button
       type="button"
-      aria-label="Orveliant mark"
+      aria-label="Ocean Park Asset mark"
       onPointerDown={spark}
       onFocus={spark}
       className="group relative mx-auto block w-full max-w-[300px] translate-x-0 translate-y-0 touch-manipulation select-none outline-none sm:max-w-[340px] lg:max-w-[460px] lg:translate-x-14 lg:translate-y-10"

@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 
 const FAQS = [
   {
-    q: "How does Orveliant actually manage my capital?",
+    q: "How does Ocean Park Asset actually manage my capital?",
     a: "Once your account is activated, our AI continuously monitors market prices, momentum, volatility, volume and liquidity. It enters positions only when its signal and risk conditions align, sizes each position to your capital, and supervises every position with automated stop-loss, exposure limits and drawdown controls.",
   },
   {

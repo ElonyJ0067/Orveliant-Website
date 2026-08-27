@@ -5,7 +5,7 @@ import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: `Get in touch with the Orveliant team in ${SITE.location} — ${SITE.email} or ${SITE.phone}.`,
+  description: `Get in touch with the Ocean Park Asset team in ${SITE.location} — ${SITE.email} or ${SITE.phone}.`,
 };
 
 export default function ContactPage() {
@@ -19,7 +19,7 @@ export default function ContactPage() {
               Speak with the <span className="text-gold-gradient">desk.</span>
             </h1>
             <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-dim">
-              Institutional questions deserve a direct line. Reach Orveliant by email or phone,
+              Institutional questions deserve a direct line. Reach Ocean Park Asset by email or phone,
               or send a brief note — we respond within one business day.
             </p>
 
@@ -92,7 +92,7 @@ export default function ContactPage() {
             </div>
 
             <p className="mt-10 text-xs leading-relaxed text-ink-mute">
-              Orveliant operates from {SITE.location}. Full registered entity details will be
+              Ocean Park Asset operates from {SITE.location}. Full registered entity details will be
               published at platform launch.
             </p>
           </div>

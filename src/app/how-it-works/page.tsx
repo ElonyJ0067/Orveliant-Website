@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 export const metadata: Metadata = {
   title: "How It Works",
   description:
-    "Inside Orveliant's disciplined engine: real-time intelligence, high-confidence execution, automated capital protection, dynamic sizing and continuous performance control.",
+    "Inside Ocean Park Asset's disciplined engine: real-time intelligence, high-confidence execution, automated capital protection, dynamic sizing and continuous performance control.",
 };
 
 const stages = [
@@ -99,7 +99,7 @@ export default function HowItWorksPage() {
           <div className="relative aspect-square overflow-hidden rounded-2xl border border-line bg-surface/40">
             <Image
               src="/images/methodology-engine.webp"
-              alt="Orveliant trading engine — layered intelligence, decision, and risk panels"
+              alt="Ocean Park Asset trading engine — layered intelligence, decision, and risk panels"
               fill
               priority
               sizes="(max-width: 1024px) 420px, 480px"

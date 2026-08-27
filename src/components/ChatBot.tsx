@@ -11,7 +11,7 @@ type Message = {
   content: string;
 };
 
-const WELCOME = "Hi, what would you like to know about Orveliant?";
+const WELCOME = "Hi, what would you like to know about Ocean Park Asset?";
 
 /** Soft mint — available status */
 const STATUS_ONLINE = "#4db887";
@@ -342,7 +342,7 @@ export function ChatBot() {
           <motion.div
             id={panelId}
             role="dialog"
-            aria-label="Orveliant assistant"
+            aria-label="Ocean Park Asset assistant"
             aria-modal="false"
             initial={{ opacity: 0, y: 16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -354,7 +354,7 @@ export function ChatBot() {
               <GoldAvatar className="h-11 w-11 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="font-display text-sm font-semibold tracking-tight text-ink">
-                  Orveliant Assistant
+                  Ocean Park Asset Assistant
                 </p>
                 <p className="text-xs text-ink-mute">Ready to assist</p>
               </div>
@@ -439,7 +439,7 @@ export function ChatBot() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   maxLength={2000}
-                  placeholder="Ask anything about Orveliant…"
+                  placeholder="Ask anything about Ocean Park Asset…"
                   autoComplete="off"
                   className="min-w-0 flex-1 border-0 bg-transparent px-4 text-sm text-ink placeholder:text-ink-mute"
                   disabled={busy}
@@ -487,7 +487,7 @@ export function ChatBot() {
         type="button"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label={open ? "Close Orveliant assistant" : "Open Orveliant assistant"}
+        aria-label={open ? "Close Ocean Park Asset assistant" : "Open Ocean Park Asset assistant"}
         onClick={toggleChat}
         initial={false}
         animate={{

@@ -36,7 +36,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <Link
       href="/"
-      aria-label="Orveliant home"
+      aria-label="Ocean Park Asset home"
       scroll
       className="logo-home group flex items-center gap-2.5"
       onClick={(e) => {
@@ -63,8 +63,8 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         priority
       />
       {!compact && (
-        <span className="brand-wordmark font-display text-[1.4rem] font-semibold leading-none">
-          Orveliant
+        <span className="brand-wordmark font-display text-[1.15rem] font-semibold leading-none tracking-tight sm:text-[1.25rem]">
+          Ocean Park
         </span>
       )}
     </Link>

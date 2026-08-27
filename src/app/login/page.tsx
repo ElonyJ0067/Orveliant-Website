@@ -4,7 +4,7 @@ import { Logo } from "@/components/Logo";
 
 export const metadata: Metadata = {
   title: "Sign In",
-  description: "Sign in to your Orveliant account.",
+  description: "Sign in to your Ocean Park Asset account.",
 };
 
 export default function LoginPage() {

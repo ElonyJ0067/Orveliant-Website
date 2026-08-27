@@ -7,7 +7,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 export const metadata: Metadata = {
   title: "Security & Risk",
   description:
-    "How Orveliant protects capital: layered automated risk controls, transparent operations, and disciplined execution.",
+    "How Ocean Park Asset protects capital: layered automated risk controls, transparent operations, and disciplined execution.",
 };
 
 const controls = [
@@ -44,7 +44,7 @@ export default function SecurityPage() {
             Protecting capital is <span className="text-gold-gradient">the first job.</span>
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-dim">
-            Every strategy on Orveliant operates inside a layered defense system that acts
+            Every strategy on Ocean Park Asset operates inside a layered defense system that acts
             automatically — engineered to control risk in every market condition.
           </p>
         </Reveal>
@@ -110,7 +110,7 @@ export default function SecurityPage() {
               </Link>
             </div>
             <p className="mt-8 max-w-3xl text-xs leading-relaxed text-ink-mute">
-              Trading and staking involve real risk of loss — Orveliant manages it with
+              Trading and staking involve real risk of loss — Ocean Park Asset manages it with
               discipline, never with promises. Not financial advice; past results do not
               guarantee future performance.
             </p>

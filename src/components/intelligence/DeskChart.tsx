@@ -1160,7 +1160,7 @@ export function DeskChart({
                 userToggled.current.pressure = true;
                 setShowPressure((v) => !v);
               }}
-              title="Orveliant Pressure — wick rejection bias × √volume"
+              title="Ocean Park Asset Pressure — wick rejection bias × √volume"
               className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${toggleBtn(showPressure)}`}
             >
               Pressure
@@ -1171,7 +1171,7 @@ export function DeskChart({
                 userToggled.current.pulse = true;
                 setShowPulse((v) => !v);
               }}
-              title="Orveliant Regime Pulse — calm/stress score, not RSI"
+              title="Ocean Park Asset Regime Pulse — calm/stress score, not RSI"
               className={`shrink-0 rounded border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors ${toggleBtn(showPulse)}`}
             >
               Pulse
@@ -1237,7 +1237,7 @@ export function DeskChart({
 
         <div className="flex flex-wrap gap-4 text-left text-xs text-ink-mute sm:text-right lg:justify-end">
           {showPressure && (
-            <div title="Orveliant Pressure (wick model)">
+            <div title="Ocean Park Asset Pressure (wick model)">
               <div className="text-[10px] uppercase tracking-[0.14em]">Pressure</div>
               <div
                 className={`mt-0.5 font-display text-base font-semibold tabular-nums ${
@@ -1263,7 +1263,7 @@ export function DeskChart({
             </div>
           )}
           {showPulse && (
-            <div title="Orveliant Regime Pulse (not RSI)">
+            <div title="Ocean Park Asset Regime Pulse (not RSI)">
               <div className="text-[10px] uppercase tracking-[0.14em]">Pulse</div>
               <div className="mt-0.5 font-display text-base font-semibold tabular-nums text-gold-light">
                 {ohlc.pulse.toFixed(1)}

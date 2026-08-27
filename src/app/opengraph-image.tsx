@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const alt = "Orveliant — Built to Act on Opportunity. Engineered to Control Risk.";
+export const alt = "Ocean Park Asset — Built to Act on Opportunity. Engineered to Control Risk.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -28,8 +28,8 @@ export default async function OpengraphImage() {
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={logoSrc} width={72} height={72} alt="" />
-          <span style={{ fontSize: 40, fontWeight: 700, color: "#f6f1e6" }}>
-            Orveli<span style={{ color: "#e8ce78" }}>ant</span>
+          <span style={{ fontSize: 36, fontWeight: 700, color: "#f6f1e6" }}>
+            Ocean Park <span style={{ color: "#e8ce78" }}>Asset</span>
           </span>
         </div>
 
@@ -72,7 +72,7 @@ export default async function OpengraphImage() {
               display: "flex",
             }}
           />
-          Disciplined, risk-controlled AI investing · orveliant.com
+          Disciplined, risk-controlled AI investing · oceanparkasset.com
         </div>
       </div>
     ),

@@ -8,7 +8,7 @@ import {
   getTimezone,
 } from "@/lib/visitorDetect";
 
-const SESSION_KEY = "orveliant_visit_notified";
+const SESSION_KEY = "oceanpark_visit_notified";
 
 /**
  * Fires once per browser session when someone lands on the site.

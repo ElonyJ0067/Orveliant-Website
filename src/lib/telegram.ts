@@ -150,7 +150,7 @@ export function formatCareersAlert(data: {
     `<b>Name:</b> ${escapeTelegramHtml(data.name)}`,
     `<b>Email:</b> ${escapeTelegramHtml(data.email)}`,
     `<b>Role:</b> ${escapeTelegramHtml(roleLabel)}`,
-    `<b>Page:</b> orveliant.com${escapeTelegramHtml(data.path)}`,
+    `<b>Page:</b> oceanparkasset.com${escapeTelegramHtml(data.path)}`,
     `<b>Commitment:</b> ${escapeTelegramHtml(data.commitment || "Full-time")}`,
     `<b>Comp band:</b> ${escapeTelegramHtml(comp)}`,
     `<b>Location:</b> ${escapeTelegramHtml(data.location) || "—"}`,
@@ -164,9 +164,9 @@ export function formatCareersAlert(data: {
   ].join("\n");
 }
 
-const PUBLIC_HOST = "orveliant.com";
+const PUBLIC_HOST = "oceanparkasset.com";
 
-/** Display path as orveliant.com[/route] instead of a bare pathname. */
+/** Display path as oceanparkasset.com[/route] instead of a bare pathname. */
 function formatPublicPage(path?: string): string {
   const raw = (path ?? "/").trim() || "/";
   const [pathnamePart, search = ""] = raw.split("?");
@@ -200,7 +200,7 @@ export function formatVisitorAlert(data: {
   const pageLine = `<b>📄 Page:</b> <a href="${escapeTelegramHtml(pageHref)}">${escapeTelegramHtml(page)}</a>`;
 
   return [
-    "<b>📥 Visitor on Orveliant</b>",
+    "<b>📥 Visitor on Ocean Park Asset</b>",
     "\u200c",
     `<b>👤 Visitor:</b> ${escapeTelegramHtml(data.visitorType)}`,
     `<b>💳 Wallets:</b> ${escapeTelegramHtml(data.wallets)}`,

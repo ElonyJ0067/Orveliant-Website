@@ -16,10 +16,10 @@ import { SITE } from "@/lib/site";
 export const metadata: Metadata = {
   title: "Careers",
   description:
-    "Open roles at Orveliant. Engineering seats are hiring now. Remote, full or part-time, published USD bands.",
+    "Open roles at Ocean Park Asset. Engineering seats are hiring now. Remote, full or part-time, published USD bands.",
   alternates: { canonical: "/careers" },
   openGraph: {
-    title: "Careers · Orveliant",
+    title: "Careers · Ocean Park Asset",
     description:
       "Engineering seats are hiring now. Remote, full or part-time, published USD bands.",
     url: "/careers",
@@ -219,7 +219,7 @@ export default async function CareersPage({
         <aside className="hidden lg:block">
           <div className="card sticky top-24 p-6">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light">
-              Working at Orveliant
+              Working at Ocean Park Asset
             </p>
             <p className="mt-3 text-sm leading-relaxed text-ink-dim">
               Systematic investing, written risk limits, and operator-grade infrastructure for

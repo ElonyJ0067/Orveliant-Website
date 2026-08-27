@@ -37,7 +37,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: path },
     openGraph: {
-      title: `${role.title} · Orveliant`,
+      title: `${role.title} · Ocean Park Asset`,
       description,
       url: path,
     },
@@ -70,13 +70,13 @@ function jobPostingJsonLd(role: NonNullable<ReturnType<typeof getCareerRole>>) {
     employmentType: ["FULL_TIME", "PART_TIME"],
     hiringOrganization: {
       "@type": "Organization",
-      name: "Orveliant",
-      sameAs: "https://orveliant.com",
-      url: "https://orveliant.com",
+      name: "Ocean Park Asset",
+      sameAs: "https://oceanparkasset.com",
+      url: "https://oceanparkasset.com",
     },
     jobLocationType: "TELECOMMUTE",
     directApply: true,
-    url: `https://orveliant.com${careerPath(role.id)}`,
+    url: `https://oceanparkasset.com${careerPath(role.id)}`,
     ...salary,
   };
 }

@@ -6,7 +6,7 @@ import { SectionHeading } from "@/components/SectionHeading";
 export const metadata: Metadata = {
   title: "Fees",
   description:
-    "Orveliant's transparent fee model: we succeed when you do. Clear, aligned pricing across Trading, Staking and Hybrid.",
+    "Ocean Park Asset's transparent fee model: we succeed when you do. Clear, aligned pricing across Trading, Staking and Hybrid.",
 };
 
 const plans = [

@@ -53,7 +53,7 @@ export function ContactForm() {
           </div>
           <h3 className="font-display text-xl font-semibold">Message received</h3>
           <p className="mt-2 text-ink-dim">
-            Thank you. A member of the Orveliant team will reply within one business day.
+            Thank you. A member of the Ocean Park Asset team will reply within one business day.
           </p>
         </div>
       </div>

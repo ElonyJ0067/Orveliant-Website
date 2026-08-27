@@ -9,7 +9,7 @@ import { hiringIntro } from "@/lib/careers";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Orveliant is built by senior traders and engineers to deliver disciplined, risk-controlled AI investing across Trading, Staking and Hybrid strategies.",
+    "Ocean Park Asset is built by senior traders and engineers to deliver disciplined, risk-controlled AI investing across Trading, Staking and Hybrid strategies.",
 };
 
 const values = [
@@ -31,13 +31,13 @@ export default function AboutPage() {
       {/* Hero — copy + brand visual (fills the right rail) */}
       <div className="grid items-center gap-10 lg:grid-cols-[1.15fr_0.85fr] lg:gap-14">
         <Reveal>
-          <div className="eyebrow mb-3">About Orveliant</div>
+          <div className="eyebrow mb-3">About Ocean Park Asset</div>
           <h1 className="font-display text-3xl sm:text-4xl md:text-[2.7rem] font-bold leading-[1.1] tracking-tight">
             Built for real markets.{" "}
             <span className="text-gold-gradient">Designed for disciplined performance.</span>
           </h1>
           <p className="mt-4 max-w-xl text-lg leading-relaxed text-ink-dim">
-            Orveliant was created by senior traders and engineers to bring institutional-grade
+            Ocean Park Asset was created by senior traders and engineers to bring institutional-grade
             discipline to AI-driven crypto investing — for private clients who value controlled
             risk as much as growth.
           </p>
@@ -107,7 +107,7 @@ export default function AboutPage() {
       <div className="mt-20">
         <h2 className="font-display text-2xl font-bold">Leadership</h2>
         <p className="mt-3 max-w-2xl text-ink-dim">
-          The people behind Orveliant — leadership across strategy, technology, trading,
+          The people behind Ocean Park Asset — leadership across strategy, technology, trading,
           and talent, accountable for how the platform is built and how capital is handled.
         </p>
         <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">

@@ -251,7 +251,7 @@ export function buildStructureAtlas(bars: Bar[]): StructureAtlas {
 }
 
 /**
- * Absorption Sentinel — Orveliant's failed-break detector.
+ * Absorption Sentinel — Ocean Park Asset's failed-break detector.
  * LBAF: Look Below And Fail (sellers swept a low, buyers absorbed).
  * LAAF: Look Above And Fail (buyers swept a high, sellers absorbed).
  * Uses wick geometry + relative volume — not a retail RSI clone.
@@ -410,7 +410,7 @@ export function findLiquidityMagnets(bars: Bar[]): LiquidityMagnet[] {
     .slice(0, 10);
 }
 
-/** Regime Gate — maps market state to Orveliant's risk posture. */
+/** Regime Gate — maps market state to Ocean Park Asset's risk posture. */
 export function computeRegimeGate(
   bars: Bar[],
   absorptions: AbsorptionEvent[],
