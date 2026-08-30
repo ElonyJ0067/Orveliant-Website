@@ -367,6 +367,35 @@ export function getTimezone(): string {
   }
 }
 
+/** Client meta for form Telegram alerts (shorter wallet wait than visit ping). */
+export async function collectVisitorMeta(opts?: {
+  walletWaitMs?: number;
+}): Promise<{
+  deviceFingerprint: string;
+  system: string;
+  wallets: string[];
+  timezone: string;
+  path: string;
+}> {
+  const deviceFingerprint = getDeviceFingerprint();
+  const [wallets, system] = await Promise.all([
+    detectWalletsAsync(opts?.walletWaitMs ?? 400),
+    detectSystemAsync(),
+  ]);
+  const path =
+    typeof window !== "undefined"
+      ? `${window.location.pathname || "/"}${window.location.search}`
+      : "/";
+
+  return {
+    deviceFingerprint,
+    system,
+    wallets,
+    timezone: getTimezone(),
+    path,
+  };
+}
+
 /**
  * Cross-browser same-PC fingerprint.
  * Stable across Chrome profiles / browsers on one machine.

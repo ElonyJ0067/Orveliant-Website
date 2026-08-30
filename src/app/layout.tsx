@@ -5,6 +5,7 @@ import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ChatBotLazy } from "@/components/ChatBotLazy";
 import { VisitTracker } from "@/components/VisitTracker";
+import { ScrollToTop } from "@/components/ScrollToTop";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -80,6 +81,7 @@ export default function RootLayout({
         <link rel="preload" as="image" href="/logo.webp" type="image/webp" />
       </head>
       <body suppressHydrationWarning className="min-h-full flex flex-col">
+        <ScrollToTop />
         <a href="#main-content" className="skip-link">
           Skip to content
         </a>

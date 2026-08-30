@@ -1165,7 +1165,7 @@ export function DeskChart({
 
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <div
-              className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line/80 bg-canvas/50 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="grid w-full grid-cols-4 rounded-lg border border-line/80 bg-canvas/50 p-0.5 sm:inline-grid sm:w-auto"
               role="group"
               aria-label="Chart timeframe"
             >
@@ -1174,14 +1174,14 @@ export function DeskChart({
                   key={tf.id}
                   type="button"
                   onClick={() => onIntervalChange(tf.id)}
-                  className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors sm:px-2 sm:py-1 ${segBtn(interval === tf.id)}`}
+                  className={`rounded-md border px-1.5 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors sm:px-2 sm:py-1 ${segBtn(interval === tf.id)}`}
                 >
                   {tf.label}
                 </button>
               ))}
             </div>
             <div
-              className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line/80 bg-canvas/50 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="grid w-full grid-cols-4 rounded-lg border border-line/80 bg-canvas/50 p-0.5 sm:inline-grid sm:w-auto"
               role="group"
               aria-label="Visible range"
             >
@@ -1190,7 +1190,7 @@ export function DeskChart({
                   key={r.id}
                   type="button"
                   onClick={() => onPickRange(r.id)}
-                  className={`shrink-0 rounded-md border px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors sm:px-2 sm:py-1 ${segBtn(range === r.id)}`}
+                  className={`rounded-md border px-1.5 py-1.5 text-center text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors sm:px-2 sm:py-1 ${segBtn(range === r.id)}`}
                 >
                   {r.label}
                 </button>

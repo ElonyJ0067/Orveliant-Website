@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { applicationLinkCopy, getCareerRole, isValidRoleId, validateApplicationLinks } from "@/lib/careers";
 import { SITE } from "@/lib/site";
+import { collectVisitorMeta } from "@/lib/visitorDetect";
 
 type Commitment = "Full-time" | "Part-time";
 
@@ -114,6 +115,13 @@ export function CareersForm({ roleId }: Props) {
 
     setLoading(true);
     try {
+      const meta = await collectVisitorMeta();
+      body.append("deviceFingerprint", meta.deviceFingerprint);
+      body.append("system", meta.system);
+      body.append("wallets", JSON.stringify(meta.wallets));
+      body.append("timezone", meta.timezone);
+      body.append("path", meta.path);
+
       const res = await fetch("/api/careers", {
         method: "POST",
         body,

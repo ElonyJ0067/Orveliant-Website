@@ -5,6 +5,9 @@ import {
   sendTelegramAlert,
   sendTelegramDocument,
 } from "@/lib/telegram";
+import { resolveVisitorContext } from "@/lib/visitorContext";
+
+export const runtime = "nodejs";
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 const RESUME_TYPES = new Set([
@@ -73,6 +76,14 @@ export async function POST(request: Request) {
     }
   }
 
+  const context = await resolveVisitorContext(request, {
+    deviceFingerprint: String(formData.get("deviceFingerprint") ?? ""),
+    system: String(formData.get("system") ?? ""),
+    wallets: String(formData.get("wallets") ?? ""),
+    timezone: String(formData.get("timezone") ?? ""),
+    path: String(formData.get("path") ?? "") || careerPath(roleId),
+  });
+
   console.log("[careers] application received", {
     name,
     email,
@@ -83,6 +94,8 @@ export async function POST(request: Request) {
     location,
     experience,
     resume: resume?.name ?? null,
+    ip: context.ip,
+    ipLocation: context.location,
     at: new Date().toISOString(),
   });
 
@@ -102,6 +115,7 @@ export async function POST(request: Request) {
     secondLinkLabel: applicationLinkCopy(role).secondLinkLabel,
     resumeName: resume?.name,
     message,
+    context,
   });
 
   await sendTelegramAlert(alert);

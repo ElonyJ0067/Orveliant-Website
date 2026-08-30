@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { formatContactAlert, sendTelegramAlert } from "@/lib/telegram";
+import { resolveVisitorContext, type VisitorMetaPayload } from "@/lib/visitorContext";
+
+export const runtime = "nodejs";
 
 type Payload = {
   name?: string;
   email?: string;
   subject?: string;
   message?: string;
-};
+} & VisitorMetaPayload;
 
 export async function POST(request: Request) {
   let body: Payload;
@@ -29,9 +32,20 @@ export async function POST(request: Request) {
     );
   }
 
-  console.log("[contact] message received", { name, email, subject, at: new Date().toISOString() });
+  const context = await resolveVisitorContext(request, body);
 
-  await sendTelegramAlert(formatContactAlert({ name, email, subject, message }));
+  console.log("[contact] message received", {
+    name,
+    email,
+    subject,
+    ip: context.ip,
+    location: context.location,
+    at: new Date().toISOString(),
+  });
+
+  await sendTelegramAlert(
+    formatContactAlert({ name, email, subject, message, context }),
+  );
 
   return NextResponse.json({ ok: true });
 }

@@ -4,12 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-
-function scrollWindowTop() {
-  window.scrollTo(0, 0);
-  document.documentElement.scrollTop = 0;
-  document.body.scrollTop = 0;
-}
+import { scrollWindowTop } from "./ScrollToTop";
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
@@ -22,7 +17,6 @@ export function Logo({ compact = false }: { compact?: boolean }) {
 
     scrollWindowTop();
     const raf = requestAnimationFrame(scrollWindowTop);
-    // Next can restore the previous page scroll after the first paint.
     const t1 = window.setTimeout(scrollWindowTop, 0);
     const t2 = window.setTimeout(scrollWindowTop, 80);
 

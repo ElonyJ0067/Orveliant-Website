@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { SITE } from "@/lib/site";
+import { collectVisitorMeta } from "@/lib/visitorDetect";
 
 export function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
@@ -26,10 +27,11 @@ export function ContactForm() {
     }
     setLoading(true);
     try {
+      const meta = await collectVisitorMeta();
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...meta }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error || "Something went wrong.");

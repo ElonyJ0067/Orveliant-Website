@@ -107,7 +107,7 @@ MISSION
 - Let people put capital to work through a continuously active, risk-controlled AI system without watching markets themselves.
 
 ACCESS
-- Primary CTA: Request Access → /waitlist (interests: AI Quant Trading, Staking, Hybrid Strategy)
+- Primary CTA: Request Access → /waitlist (fields: name, email, approximate capital range, interest: AI Quant Trading / Staking / Hybrid Strategy, optional LinkedIn)
 - /login is Phase 2 and currently disabled
 - Contact: /contact
 

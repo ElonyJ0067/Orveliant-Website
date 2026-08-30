@@ -22,7 +22,7 @@ const DOCS: Record<string, { title: string; intro: string; body: string[] }> = {
     intro:
       "We respect your privacy. This policy explains what information we collect through this website and how it is handled.",
     body: [
-      "1. Information we collect. Information you voluntarily provide — such as your name, email, stated interest (early-access form), and any message you send (contact form).",
+      "1. Information we collect. Information you voluntarily provide — such as your name, email, approximate capital range, stated interest, and optional LinkedIn profile (early-access form), and any message you send (contact form).",
       "2. How we use it. To contact you about Ocean Park Asset, respond to enquiries, plan onboarding, and improve our services. We process this information based on your consent and our legitimate interest in operating the business.",
       "3. Sharing. We do not sell your personal information. We may share it with service providers (for example, our email provider) strictly to deliver the communications you requested.",
       "4. Market data. Prices and charts shown on this site come from public market APIs and contain no personal data.",

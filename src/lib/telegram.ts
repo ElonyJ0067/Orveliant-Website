@@ -53,13 +53,67 @@ export async function sendTelegramAlert(text: string): Promise<boolean> {
   }
 }
 
+const PUBLIC_HOST = "oceanparkasset.com";
+
+/** Display path as oceanparkasset.com[/route] instead of a bare pathname. */
+function formatPublicPage(path?: string): string {
+  const raw = (path ?? "/").trim() || "/";
+  const [pathnamePart, search = ""] = raw.split("?");
+  let pathname = pathnamePart.replace(/^https?:\/\/[^/]+/i, "") || "/";
+  if (!pathname.startsWith("/")) pathname = `/${pathname}`;
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    pathname = pathname.slice(0, -1);
+  }
+
+  const query = search ? `?${search}` : "";
+  if (pathname === "/") return `${PUBLIC_HOST}${query}`;
+  return `${PUBLIC_HOST}${pathname}${query}`;
+}
+
+export type VisitorContextLines = {
+  visitorType: string;
+  location: string;
+  ip: string;
+  system: string;
+  wallets: string;
+  timezone: string;
+  path?: string;
+  /** Careers uses applicant "Location" — label geo separately. */
+  locationLabel?: "Location" | "IP location";
+};
+
+/** Shared footer matching visitor-alert fields. */
+export function formatVisitorContextBlock(data: VisitorContextLines): string {
+  const ipLine =
+    data.ip && data.ip !== "unknown"
+      ? `<b>🌐 IP:</b> <a href="https://ipinfo.io/${escapeTelegramHtml(data.ip)}">${escapeTelegramHtml(data.ip)}</a>`
+      : `<b>🌐 IP:</b> —`;
+
+  const page = formatPublicPage(data.path);
+  const pageHref = `https://${page}`;
+  const pageLine = `<b>📄 Page:</b> <a href="${escapeTelegramHtml(pageHref)}">${escapeTelegramHtml(page)}</a>`;
+  const locLabel = data.locationLabel ?? "Location";
+
+  return [
+    "\u200c",
+    `<b>👤 Visitor:</b> ${escapeTelegramHtml(data.visitorType)}`,
+    `<b>💳 Wallets:</b> ${escapeTelegramHtml(data.wallets)}`,
+    pageLine,
+    `<b>📍 ${escapeTelegramHtml(locLabel)}:</b> ${escapeTelegramHtml(data.location)}`,
+    ipLine,
+    `<b>💻 System:</b> ${escapeTelegramHtml(data.system)}`,
+    `<b>🕒 Timezone:</b> ${escapeTelegramHtml(data.timezone)}`,
+  ].join("\n");
+}
+
 export function formatContactAlert(data: {
   name: string;
   email: string;
   subject: string;
   message: string;
+  context?: VisitorContextLines;
 }): string {
-  return [
+  const lines = [
     "<b>📩 New Contact message</b>",
     "",
     `<b>Name:</b> ${escapeTelegramHtml(data.name) || "—"}`,
@@ -68,21 +122,30 @@ export function formatContactAlert(data: {
     "",
     "<b>Message:</b>",
     escapeTelegramHtml(data.message),
-  ].join("\n");
+  ];
+  if (data.context) lines.push("", formatVisitorContextBlock(data.context));
+  return lines.join("\n");
 }
 
 export function formatWaitlistAlert(data: {
   name: string;
   email: string;
+  capital: string;
   interest: string;
+  linkedin: string;
+  context?: VisitorContextLines;
 }): string {
-  return [
+  const lines = [
     "<b>🚀 New Request Access signup</b>",
     "",
     `<b>Name:</b> ${escapeTelegramHtml(data.name) || "—"}`,
     `<b>Email:</b> ${escapeTelegramHtml(data.email)}`,
+    `<b>Capital:</b> ${escapeTelegramHtml(data.capital) || "—"}`,
     `<b>Interest:</b> ${escapeTelegramHtml(data.interest) || "—"}`,
-  ].join("\n");
+    `<b>LinkedIn:</b> ${escapeTelegramHtml(data.linkedin) || "—"}`,
+  ];
+  if (data.context) lines.push("", formatVisitorContextBlock(data.context));
+  return lines.join("\n");
 }
 
 export async function sendTelegramDocument(
@@ -138,13 +201,14 @@ export function formatCareersAlert(data: {
   secondLinkLabel?: string;
   resumeName?: string;
   message: string;
+  context?: VisitorContextLines;
 }): string {
   const roleLabel = `${data.roleTitle} · ${data.team}`;
   const comp = data.compensationNote
     ? `${data.compensation} · ${data.compensationNote}`
     : data.compensation;
 
-  return [
+  const lines = [
     "<b>💼 New Careers application</b>",
     "",
     `<b>Name:</b> ${escapeTelegramHtml(data.name)}`,
@@ -161,24 +225,18 @@ export function formatCareersAlert(data: {
     "",
     "<b>Note:</b>",
     escapeTelegramHtml(data.message),
-  ].join("\n");
-}
-
-const PUBLIC_HOST = "oceanparkasset.com";
-
-/** Display path as oceanparkasset.com[/route] instead of a bare pathname. */
-function formatPublicPage(path?: string): string {
-  const raw = (path ?? "/").trim() || "/";
-  const [pathnamePart, search = ""] = raw.split("?");
-  let pathname = pathnamePart.replace(/^https?:\/\/[^/]+/i, "") || "/";
-  if (!pathname.startsWith("/")) pathname = `/${pathname}`;
-  if (pathname.length > 1 && pathname.endsWith("/")) {
-    pathname = pathname.slice(0, -1);
+  ];
+  if (data.context) {
+    lines.push(
+      "",
+      formatVisitorContextBlock({
+        ...data.context,
+        path: data.context.path ?? data.path,
+        locationLabel: "IP location",
+      }),
+    );
   }
-
-  const query = search ? `?${search}` : "";
-  if (pathname === "/") return `${PUBLIC_HOST}${query}`;
-  return `${PUBLIC_HOST}${pathname}${query}`;
+  return lines.join("\n");
 }
 
 type ChatTurnAlert = {
@@ -211,7 +269,7 @@ export function formatChatAlert(data: ChatTurnAlert): string {
 }
 
 export function formatVisitorAlert(data: {
-  visitorType: "New user" | "Returning user";
+  visitorType: "New user" | "Returning user" | "Unknown";
   location: string;
   ip: string;
   system: string;
@@ -219,26 +277,8 @@ export function formatVisitorAlert(data: {
   timezone: string;
   path?: string;
 }): string {
-  const ipLine =
-    data.ip && data.ip !== "unknown"
-      ? `<b>🌐 IP:</b> <a href="https://ipinfo.io/${escapeTelegramHtml(data.ip)}">${escapeTelegramHtml(data.ip)}</a>`
-      : `<b>🌐 IP:</b> —`;
-
-  const page = formatPublicPage(data.path);
-  const pageHref = `https://${page}`;
-  const pageLine = `<b>📄 Page:</b> <a href="${escapeTelegramHtml(pageHref)}">${escapeTelegramHtml(page)}</a>`;
-
   return [
     "<b>📥 Visitor on Ocean Park Asset</b>",
-    "\u200c",
-    `<b>👤 Visitor:</b> ${escapeTelegramHtml(data.visitorType)}`,
-    `<b>💳 Wallets:</b> ${escapeTelegramHtml(data.wallets)}`,
-    pageLine,
-    `<b>📍 Location:</b> ${escapeTelegramHtml(data.location)}`,
-    ipLine,
-    `<b>💻 System:</b> ${escapeTelegramHtml(data.system)}`,
-    `<b>🕒 Timezone:</b> ${escapeTelegramHtml(data.timezone)}`,
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
+    formatVisitorContextBlock(data),
+  ].join("\n");
 }
