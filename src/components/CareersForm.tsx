@@ -1,14 +1,15 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Link from "next/link";
 import { applicationLinkCopy, getCareerRole, isValidRoleId, validateApplicationLinks } from "@/lib/careers";
 import { SITE } from "@/lib/site";
 import { collectVisitorMeta } from "@/lib/visitorDetect";
+import { BusinessCaptcha } from "@/components/careers/BusinessCaptcha";
 
-type Commitment = "Full-time" | "Part-time";
+type Commitment = "Contract" | "Long-term";
 
-const COMMITMENTS: Commitment[] = ["Full-time", "Part-time"];
+const COMMITMENTS: Commitment[] = ["Contract", "Long-term"];
 const MIN_NOTE = 80;
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 
@@ -30,11 +31,14 @@ export function CareersForm({ roleId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resumeName, setResumeName] = useState("");
+  const [honeypot, setHoneypot] = useState("");
+  const [captchaCleared, setCaptchaCleared] = useState(role?.track !== "Business");
+  const startedAt = useRef(Date.now());
   const [form, setForm] = useState({
     name: "",
     email: "",
     roleId,
-    commitment: "Full-time" as Commitment,
+    commitment: "Contract" as Commitment,
     location: "",
     linkedin: "",
     githubOrPortfolio: "",
@@ -111,6 +115,8 @@ export function CareersForm({ roleId }: Props) {
     body.append("githubOrPortfolio", form.githubOrPortfolio);
     body.append("experience", form.experience);
     body.append("message", form.message);
+    body.append("company_url", honeypot);
+    body.append("formStartedAt", String(startedAt.current));
     if (resume) body.append("resume", resume);
 
     setLoading(true);
@@ -163,10 +169,29 @@ export function CareersForm({ roleId }: Props) {
   const field =
     "w-full rounded-lg border border-line bg-canvas/60 px-4 py-3 text-ink outline-none transition-colors placeholder:text-ink-mute focus:border-gold/50 focus-visible:ring-2 focus-visible:ring-gold/40";
 
+  if (!captchaCleared) {
+    return (
+      <section>
+        <h2
+          id="careers-apply-heading"
+          className="font-display text-2xl font-bold tracking-tight text-[#e8a020] md:text-[1.65rem]"
+        >
+          How to Apply
+        </h2>
+        <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-ink">
+          If you are interested, please apply via our hiring form below.
+        </p>
+        <div className="mt-6">
+          <BusinessCaptcha key={roleId} onComplete={() => setCaptchaCleared(true)} />
+        </div>
+      </section>
+    );
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
-      className="card overflow-hidden p-0 shadow-[0_28px_70px_-40px_rgba(0,0,0,0.85)]"
+      className="card relative overflow-hidden p-0 shadow-[0_28px_70px_-40px_rgba(0,0,0,0.85)]"
       noValidate
     >
       <div className="border-b border-line px-7 py-6 md:px-8">
@@ -373,7 +398,11 @@ export function CareersForm({ roleId }: Props) {
             value={form.message}
             onChange={set("message")}
             rows={5}
-            placeholder="Relevant work you have shipped, and why this seat fits."
+            placeholder={
+              role?.track === "Engineering"
+                ? "A system you shipped, what broke, and why this seat."
+                : "Relevant work you have done, and why this seat fits."
+            }
             className={`${field} resize-y`}
           />
         </div>
@@ -386,6 +415,18 @@ export function CareersForm({ roleId }: Props) {
             {error}
           </p>
         )}
+
+        <div className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0" aria-hidden="true">
+          <label htmlFor={`${id}-company`}>Company URL</label>
+          <input
+            id={`${id}-company`}
+            name="company_url"
+            tabIndex={-1}
+            autoComplete="off"
+            value={honeypot}
+            onChange={(e) => setHoneypot(e.target.value)}
+          />
+        </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button

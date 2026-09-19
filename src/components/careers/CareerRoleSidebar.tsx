@@ -7,52 +7,45 @@ type Props = {
 };
 
 export function CareerRoleSidebar({ role }: Props) {
-  const hiringLabel = role.hiring === "now" ? "Hiring now" : "Open to profiles";
-
   return (
     <aside className="hidden lg:block lg:sticky lg:top-24 lg:self-start">
       <div className="card p-6">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-              role.hiring === "now"
-                ? "border border-gold/40 bg-gold/10 text-gold-light"
-                : "border border-line bg-surface/60 text-ink-mute"
-            }`}
-          >
-            {hiringLabel}
+          <span className="rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold-light">
+            {role.track}
           </span>
           <span className="rounded-full border border-line bg-surface/60 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-mute">
-            Remote
+            Remote · Contract
           </span>
         </div>
 
         <dl className="mt-6 space-y-5">
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-              Compensation
+              Rate
             </dt>
             <dd className="mt-1.5 font-display text-xl font-semibold tabular-nums text-ink">
               {role.compensation}
             </dd>
-            <dd className="mt-1 text-sm leading-relaxed text-ink-dim">
-              {role.compensationNote ? `${role.compensationNote}. ` : ""}
-              Full-time USD. Part-time pro-rated.
-            </dd>
+            {role.compensationNote ? (
+              <dd className="mt-1 text-sm leading-relaxed text-ink-dim">{role.compensationNote}</dd>
+            ) : null}
           </div>
 
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-              Reports to
+              Engagement
             </dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-ink">{role.reportsTo}</dd>
+            <dd className="mt-1.5 text-sm leading-relaxed text-ink">
+              Freelance / contract. Flexible hours. Fully remote.
+            </dd>
           </div>
 
           <div>
             <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
               How we hire
             </dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-ink-dim">{role.process}</dd>
+            <dd className="mt-1.5 text-sm leading-relaxed text-ink-dim">{role.processSummary}</dd>
           </div>
         </dl>
 

@@ -29,9 +29,9 @@ export async function POST(request: Request) {
   const roleId = String(formData.get("roleId") ?? "").trim().slice(0, 80);
   const commitmentRaw = String(formData.get("commitment") ?? "").trim();
   const commitment =
-    commitmentRaw === "Part-time" || commitmentRaw === "Full-time"
+    commitmentRaw === "Long-term" || commitmentRaw === "Contract"
       ? commitmentRaw
-      : "Full-time";
+      : "Contract";
   const location = String(formData.get("location") ?? "").trim().slice(0, 120);
   const linkedin = String(formData.get("linkedin") ?? "").trim().slice(0, 500);
   const githubOrPortfolio = String(formData.get("githubOrPortfolio") ?? "")
@@ -42,6 +42,10 @@ export async function POST(request: Request) {
   const resumeEntry = formData.get("resume");
   const resume =
     resumeEntry instanceof File && resumeEntry.size > 0 ? resumeEntry : null;
+
+  if (String(formData.get("company_url") ?? "").trim()) {
+    return NextResponse.json({ ok: true });
+  }
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 

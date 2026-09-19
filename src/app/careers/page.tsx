@@ -1,62 +1,26 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { permanentRedirect, redirect } from "next/navigation";
-import { Reveal } from "@/components/Reveal";
+import { CareerJobCard } from "@/components/careers/CareerJobCard";
 import {
+  CAREER_TRACK_COPY,
   careerPath,
-  hiringIntro,
-  hiringNow,
   isValidRoleId,
-  otherRoles,
-  roleSummary,
-  rolesByTeam,
+  rolesInTrack,
 } from "@/lib/careers";
 import { SITE } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Careers",
   description:
-    "Open roles at Ocean Park Asset. Engineering seats are hiring now. Remote, full or part-time, published USD bands.",
+    "Open roles at Ocean Park Asset. Seven business roles and five engineering seats. Fully remote contract work, with the rate on every listing.",
   alternates: { canonical: "/careers" },
   openGraph: {
     title: "Careers · Ocean Park Asset",
     description:
-      "Engineering seats are hiring now. Remote, full or part-time, published USD bands.",
+      "Seven business roles and five engineering seats. Fully remote, contract, published hourly rates.",
     url: "/careers",
   },
 };
-
-function HiringFacts() {
-  return (
-    <dl className="space-y-5">
-      <div>
-        <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-          Location
-        </dt>
-        <dd className="mt-1.5 text-sm leading-relaxed text-ink">
-          Remote. No required city. Written overlap with the team.
-        </dd>
-      </div>
-      <div>
-        <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-          Type
-        </dt>
-        <dd className="mt-1.5 text-sm leading-relaxed text-ink">
-          Full-time or part-time. Bands are full-time USD; part-time is pro-rated.
-        </dd>
-      </div>
-      <div>
-        <dt className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-          How we hire
-        </dt>
-        <dd className="mt-1.5 text-sm leading-relaxed text-ink">
-          Each role page has the full description. Apply there. Take-home where the seat has
-          one.
-        </dd>
-      </div>
-    </dl>
-  );
-}
 
 export default async function CareersPage({
   searchParams,
@@ -69,179 +33,73 @@ export default async function CareersPage({
     redirect("/careers");
   }
 
-  const featured = hiringNow();
-  const rest = rolesByTeam(otherRoles());
+  const business = rolesInTrack("Business");
+  const engineering = rolesInTrack("Engineering");
+  const openCount = business.length + engineering.length;
 
   return (
-    <div className="container-x py-16 md:py-20">
-      <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-16 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0">
-          <Reveal>
-            <div className="max-w-2xl">
-              <div className="eyebrow mb-4">Careers</div>
-              <h1 className="font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-5xl">
-                Open roles
-              </h1>
-              <p className="mt-5 max-w-xl text-lg leading-relaxed text-ink-dim">
-                {hiringIntro(featured)}
-              </p>
-            </div>
-          </Reveal>
+    <div className="container-x py-12 md:py-16">
+      <header className="max-w-2xl">
+        <p className="eyebrow">Careers</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-ink md:text-5xl">
+          Open roles
+        </h1>
+        <p className="mt-4 text-base leading-relaxed text-ink-dim md:text-lg">
+          Fully remote contract work. The person who owns a function owns it end to end. The rate
+          is on the role.
+        </p>
+        <p className="mt-5 text-sm text-ink-mute">
+          <span className="font-medium text-ink">{openCount} open</span>
+          <span className="mx-2 text-white/25" aria-hidden>
+            ·
+          </span>
+          Remote
+          <span className="mx-2 text-white/25" aria-hidden>
+            ·
+          </span>
+          Contract
+        </p>
+      </header>
 
-          <section className="mt-16">
-            <div className="flex items-baseline justify-between gap-4 border-b border-line pb-4">
-              <h2 className="font-display text-2xl font-bold tracking-tight">Hiring</h2>
-              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-                {featured.length} {featured.length === 1 ? "seat" : "seats"}
-              </span>
-            </div>
-
-            <ul className="divide-y divide-line">
-              {featured.map((role) => (
-                <li key={role.id} className="py-7">
-                  <article className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-start">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-gold/40 bg-gold/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gold-light">
-                          Hiring now
-                        </span>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-                          {role.team}
-                        </span>
-                      </div>
-
-                      <h3 className="mt-3 font-display text-xl font-semibold text-ink">
-                        <Link
-                          href={careerPath(role.id)}
-                          className="transition-colors hover:text-gold-light"
-                        >
-                          {role.title}
-                        </Link>
-                      </h3>
-
-                      <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-                        {role.focus}
-                      </p>
-                      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-dim">
-                        {roleSummary(role)}
-                      </p>
-
-                      <p className="mt-3 text-sm tabular-nums text-ink">
-                        {role.compensation}
-                        {role.compensationNote ? ` · ${role.compensationNote}` : ""}
-                      </p>
-
-                      <p className="mt-2 text-xs text-ink-mute">
-                        Full job description on the role page — responsibilities, requirements,
-                        and application.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2.5 lg:justify-self-end lg:pt-8">
-                      <Link
-                        href={careerPath(role.id)}
-                        className="btn-ghost px-4 py-2 text-sm text-ink"
-                      >
-                        View full role
-                      </Link>
-                      <Link
-                        href={`${careerPath(role.id)}#apply`}
-                        className="btn-gold group px-4 py-2 text-sm"
-                      >
-                        Apply
-                        <span
-                          aria-hidden
-                          className="inline-block transition-transform duration-200 group-hover:translate-x-0.5"
-                        >
-                          →
-                        </span>
-                      </Link>
-                    </div>
-                  </article>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="mt-16">
-            <div className="border-b border-line pb-4">
-              <h2 className="font-display text-2xl font-bold tracking-tight">Other roles</h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-mute">
-                Not an active search. Each listing still has a full description — apply if the
-                work already matches what you do.
-              </p>
-            </div>
-
-            <div>
-              {rest.map((desk) => (
-                <div key={desk.team} className="pt-8 first:pt-6">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold-light">
-                    {desk.team}
-                  </p>
-                  <p className="mt-1 text-sm text-ink-mute">{desk.blurb}</p>
-                  <ul className="mt-3 divide-y divide-line border-y border-line">
-                    {desk.roles.map((role) => (
-                      <li key={role.id}>
-                        <Link
-                          href={careerPath(role.id)}
-                          className="grid gap-1 py-3.5 text-sm transition-colors hover:text-gold-light sm:grid-cols-[1fr_auto] sm:items-baseline sm:gap-4"
-                        >
-                          <span>
-                            <span className="font-medium text-ink">{role.title}</span>
-                            <span className="mt-0.5 block text-xs leading-relaxed text-ink-mute">
-                              {role.focus}
-                            </span>
-                          </span>
-                          <span className="tabular-nums text-ink-mute sm:text-right">
-                            {role.compensation}
-                            {role.compensationNote ? ` · ${role.compensationNote}` : ""}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
+      <div className="mt-16 space-y-24 md:mt-20 md:space-y-28">
+        {(
+          [
+            ["business", "Business", business],
+            ["engineering", "Engineering", engineering],
+          ] as const
+        ).map(([anchor, track, roles]) => {
+          const copy = CAREER_TRACK_COPY[track];
+          return (
+            <section key={track} id={anchor} className="scroll-mt-28">
+              <header>
+                <div className="flex items-end justify-between gap-6">
+                  <h2 className="font-display text-3xl font-semibold tracking-tight text-ink md:text-4xl">
+                    {copy.title}
+                  </h2>
+                  <p className="pb-1 text-sm tabular-nums text-ink-mute">{roles.length} roles</p>
                 </div>
-              ))}
-            </div>
-          </section>
-
-          <p className="mt-16 border-t border-line pt-8 text-sm text-ink-mute">
-            Questions before applying?{" "}
-            <a
-              href={`mailto:${SITE.email}?subject=Careers%20inquiry`}
-              className="font-medium text-gold-light underline-offset-2 hover:underline"
-            >
-              {SITE.email}
-            </a>
-          </p>
-        </div>
-
-        <aside className="hidden lg:block">
-          <div className="card sticky top-24 p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light">
-              Working at Ocean Park Asset
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-ink-dim">
-              Systematic investing, written risk limits, and operator-grade infrastructure for
-              private clients. We publish compensation bands and keep job descriptions complete
-              on every role page.
-            </p>
-            <div className="mt-6 border-t border-line pt-6">
-              <HiringFacts />
-            </div>
-            <Link
-              href="/about"
-              className="mt-6 inline-block text-sm font-medium text-gold-light transition-colors hover:text-gold-bright"
-            >
-              About the company →
-            </Link>
-          </div>
-        </aside>
+                <div className="mt-5 h-px bg-gradient-to-r from-gold via-gold/35 to-transparent" aria-hidden />
+                <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-dim">{copy.blurb}</p>
+              </header>
+              <ul className="mt-8 border-t border-line md:mt-10">
+                {roles.map((role) => (
+                  <CareerJobCard key={role.id} role={role} />
+                ))}
+              </ul>
+            </section>
+          );
+        })}
       </div>
 
-      <div className="mt-12 border-y border-line py-6 lg:hidden">
-        <HiringFacts />
-      </div>
+      <p className="mt-16 text-sm text-ink-mute">
+        Questions before applying?{" "}
+        <a
+          href={`mailto:${SITE.email}?subject=Careers%20inquiry`}
+          className="font-medium text-gold-light underline-offset-2 hover:underline"
+        >
+          {SITE.email}
+        </a>
+      </p>
     </div>
   );
 }

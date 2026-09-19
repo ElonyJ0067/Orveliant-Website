@@ -1,5 +1,9 @@
-export const CAREER_TEAMS = ["Engineering", "Markets", "Product", "Operations"] as const;
-export type CareerTeam = (typeof CAREER_TEAMS)[number];
+export const CAREER_TRACKS = ["Business", "Engineering"] as const;
+export type CareerTrack = (typeof CAREER_TRACKS)[number];
+
+/** @deprecated Use CareerTrack. Kept so application alerts still receive a team label. */
+export type CareerTeam = CareerTrack;
+
 export type HiringStatus = "now" | "open";
 
 export type JobDescription = {
@@ -13,429 +17,674 @@ export type JobDescription = {
 
 export type CareerRole = {
   id: string;
-  team: CareerTeam;
+  track: CareerTrack;
+  /** Same as track. Application alerts still label this "team". */
+  team: CareerTrack;
   title: string;
-  /** One line: what this seat owns, and what it does not. */
+  /** One line under the title on the role page and in the application form. */
   focus: string;
+  /** Muted line on the job card, under the date. */
+  cardLine: string;
+  /** Short rate for the card footer, e.g. "$100–$180/hr". */
+  rateLabel: string;
   compensation: string;
   compensationNote?: string;
   location: string;
-  reportsTo: string;
-  hiring: HiringStatus;
-  process: string;
+  engagement: string[];
+  whyJoin: string[];
+  hiringSteps: string[];
+  /** One sentence for the role sidebar. */
+  processSummary: string;
   stack: string[];
+  /** Extra paragraph after the about copy. Domain welcome, or a hard scope line. */
+  bridge?: string;
   description: JobDescription;
+  hiring: HiringStatus;
 };
 
-export const CAREER_TEAM_COPY: Record<CareerTeam, { blurb: string }> = {
+export const CAREERS_POSTED_LABEL = "September 19, 2026";
+/** ISO date for schema only (not shown as a second date in the UI). */
+export const CAREERS_POSTED = "2026-09-19";
+
+const ENGAGEMENT = [
+  "Freelance / contract, with potential for long-term collaboration",
+  "Flexible hours",
+  "Fully remote",
+  "Immediate start",
+];
+
+const WHY_BUSINESS = [
+  "Real ownership. You run your function. No committee between you and the work.",
+  "Work at the frontier. AI, quantitative systems, and blockchain infrastructure applied to real capital — not a pitch deck.",
+  "Fully remote, from day one. There is no head office you are missing out on.",
+  "Compensation at the top of market. We would rather hire one excellent person than three average ones, and we pay accordingly.",
+];
+
+const WHY_ENGINEERING = [
+  "Real ownership. You ship the system you design. No committee between you and the diff.",
+  "The code sits in the path of real capital. Not a demo that gets thrown away after the pitch.",
+  "Fully remote, from day one. There is no head office you are missing out on.",
+  "We pay for one excellent person, not three average ones. The rate on this page is the rate.",
+];
+
+const PROCESS_SUMMARY_BUSINESS =
+  "Short application on this page, then a conversation with leadership.";
+const PROCESS_SUMMARY_ENGINEERING =
+  "Short application, then a two-hour practical on our system, then a conversation.";
+
+function businessSteps(interview: string): string[] {
+  return [
+    "Submitting a short application on this page, with a short note about relevant work",
+    `Participating in a ${interview} interview with our leadership team`,
+    "Final interview and contract for selected candidates",
+  ];
+}
+
+function engineeringSteps(practical: string): string[] {
+  return [
+    "Submitting a short application on this page — a link to work you are proud of, and a note in your own words",
+    practical,
+    "A technical conversation with engineering",
+    "Final conversation and contract for selected candidates",
+  ];
+}
+
+export const CAREERS_INTRO = {
+  kicker: "Build the systems underneath the market.",
+  body: "Ocean Park Asset is a private financial technology company building AI-driven investment infrastructure and quantitative systems for modern financial markets. We develop automated execution engines, risk management tools, and blockchain-integrated financial infrastructure — the systems that sit underneath how capital actually moves.",
+  closer:
+    "We are a small, senior, fully remote team. There are no layers here. The person who owns a function owns it end to end, ships fast, and sees the result of their work in the numbers within weeks rather than quarters.",
+};
+
+export const CAREER_TRACK_COPY: Record<
+  CareerTrack,
+  { title: string; blurb: string; note: string }
+> = {
+  Business: {
+    title: "Business",
+    blurb:
+      "Finance experience is required for Financial Analyst and Compliance Officer. The other seats do not require it.",
+    note: "",
+  },
   Engineering: {
-    blurb: "Contracts, execution systems, APIs, and payment rails.",
-  },
-  Markets: {
-    blurb: "Live books under written limits.",
-  },
-  Product: {
-    blurb: "What operators and clients actually use.",
-  },
-  Operations: {
-    blurb: "Pipeline and the numbers next to the book.",
+    title: "Engineering",
+    blurb:
+      "The AI seat is a decision policy, not a language model. The trader seat is the live book.",
+    note: "",
   },
 };
-
-const PROCESS_TAKE_HOME =
-  "Short application, then a take-home in this stack. We reply if we want a conversation.";
-const PROCESS_APPLICATION =
-  "Short application. We reply when there is a conversation to have.";
 
 export const CAREER_ROLES: CareerRole[] = [
   {
-    id: "smart-contract-engineer",
-    team: "Engineering",
-    title: "Smart Contract Engineer",
-    focus: "Solidity for vaults, staking, and capital movement on EVM. Not payment webhooks. Not execution bots.",
-    compensation: "$150k–$220k",
+    id: "business-development-manager",
+    track: "Business",
+    team: "Business",
+    title: "Business Development Manager",
+    focus: "Own the pipeline from first conversation to signed agreement.",
+    cardLine: "Pipeline, proposals, and the close",
+    rateLabel: "$100–$180/hr",
+    compensation: "$100 – $180 USD / hour",
+    compensationNote: "Performance-based upside available on closed business",
     location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "now",
-    process: PROCESS_APPLICATION,
-    stack: ["Solidity", "Foundry", "EVM"],
-    description: {
-      summary:
-        "Own the on-chain contracts behind Trading, Staking, and Hybrid. Pause paths, least privilege, and tests that fail when they should. EVM only.",
-      about:
-        "We are looking for a smart contract engineer to own the on-chain contracts behind our Trading, Staking, and Hybrid products on EVM. You will ship vault and settlement flows with pause paths, least privilege, and Foundry tests that fail when they should. This is an engineering seat reporting to Alvin, Head of Engineering. Payment webhooks and execution bots are handled elsewhere.",
-      responsibilities: [
-        "Design and ship Solidity for staking, vaults, and settlement-related flows",
-        "Own access control, upgrade and pause paths, and Foundry invariant tests",
-        "Work with backend so deposits, rewards, and withdrawals match off-chain state",
-      ],
-      requirements: [
-        "Production Solidity on EVM, with Foundry or equivalent as daily tooling",
-        "You know proxies, reentrancy, oracle assumptions, and how money moves on-chain",
-        "You can explain a design in writing before it merges",
-      ],
-      niceToHave: [
-        "ERC-4626 or similar vault work",
-        "Sat with an audit, as author or recipient",
-      ],
-    },
-  },
-  {
-    id: "trading-bot-systems-engineer",
-    team: "Engineering",
-    title: "Trading Bot / Systems Engineer",
-    focus: "Live execution bots, failover, and kill paths. Not model training. Not the USDC ledger.",
-    compensation: "$140k–$200k",
-    location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "now",
-    process: PROCESS_TAKE_HOME,
-    stack: ["Python", "TypeScript"],
-    description: {
-      summary:
-        "Bots run in live markets for private clients. This seat owns the process: start, stop, restart, and prove they did. Supervision, failover, and the controls that stop a bad minute from becoming a bad day.",
-      about:
-        "We are looking for an engineer to build and operate the live execution bots our private clients depend on. You will own start, stop, restart, and proof they worked — supervision, failover, and controls that stop a bad minute from becoming a bad day. This is an engineering seat reporting to Alvin, Head of Engineering. Model training and the USDC ledger are out of scope.",
-      responsibilities: [
-        "Build and operate execution bots and the services around them",
-        "Instrument latency, fills, rejects, and drift so trouble is visible early",
-        "Design failover and kill paths Risk can use under stress",
-        "Keep paper and live on the same code path, different capital",
-        "Ship small, reversible releases with Markets and Backend",
-      ],
-      requirements: [
-        "You have shipped and operated automated trading, or an equally unforgiving production system",
-        "Python or TypeScript in production, including logging and incident habits",
-        "You treat exchanges, sequence, and partial fills as normal failure modes",
-        "You write the postmortem. You don't hide the gap",
-      ],
-      niceToHave: [
-        "Exchange REST/WebSocket or OMS work",
-        "Drawdown limits sitting in the execution path",
-      ],
-    },
-  },
-  {
-    id: "backend-engineer-trading-systems",
-    team: "Engineering",
-    title: "Backend Engineer",
-    focus: "APIs, market data, and order orchestration. Not the bot process. Not the UI.",
-    compensation: "$145k–$210k",
-    location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "now",
-    process: PROCESS_APPLICATION,
-    stack: ["TypeScript", "PostgreSQL", "EVM"],
-    description: {
-      summary:
-        "APIs and pipelines the desk and bots depend on. Market data ingest, order orchestration, and durable state that survives partial failure. Not the execution process. Not the UI.",
-      about:
-        "We are looking for a backend engineer to build the APIs and pipelines our desk and bots depend on — market data ingest, order orchestration, and durable state that survives partial failure. This is an engineering seat reporting to Alvin, Head of Engineering. The bot process and operator UI are handled by other seats.",
-      responsibilities: [
-        "Design APIs for market data, orders, positions, and account state",
-        "Run durable ingest and normalize pipelines the desk can trust under load",
-        "Orchestrate order and settlement flows with explicit state and retries",
-      ],
-      requirements: [
-        "Production backend work where correctness matters more than novelty",
-        "TypeScript or similar; you can model state machines and idempotent jobs",
-        "You have integrated external venues or chains and handled partial failure",
-      ],
-      niceToHave: [
-        "Exchange or broker APIs",
-        "EVM indexing or event decoding",
-      ],
-    },
-  },
-  {
-    id: "frontend-engineer-trading-ui",
-    team: "Engineering",
-    title: "Frontend Engineer",
-    focus: "Real-time desk and operator UI. Not backend services. Not brand illustration.",
-    compensation: "$125k–$175k",
-    location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "now",
-    process: PROCESS_APPLICATION,
-    stack: ["TypeScript", "React", "Next.js"],
-    description: {
-      summary:
-        "The surfaces operators stare at when the book moves. Live charts, positions, and risk state — with reconnect and stale data handled honestly. Not backend services. Not brand illustration.",
-      about:
-        "We are looking for a frontend engineer to build the surfaces operators stare at when the book moves — live charts, positions, and risk state, with reconnect and stale data handled honestly. You will hold the performance bar when markets move fast. This is an engineering seat reporting to Alvin, Head of Engineering. Backend services and brand illustration are out of scope.",
-      responsibilities: [
-        "Ship live charts, positions, fills, and risk state",
-        "Handle reconnect, stale data, and empty states as first-class",
-        "Hold the performance bar when the book moves",
-      ],
-      requirements: [
-        "TypeScript and React in production on a complex interactive surface",
-        "Real-time UI (WebSockets or equivalent) and the failure modes that come with it",
-        "You cut decoration that fights readability",
-      ],
-      niceToHave: [
-        "Trading or ops consoles",
-        "lightweight-charts or canvas market views",
-      ],
-    },
-  },
-  {
-    id: "payments-engineer",
-    team: "Engineering",
-    title: "Payments Engineer",
-    focus: "USDC deposits, webhooks, and ledger truth. Not PnL reporting. Not trading bots.",
-    compensation: "$140k–$200k",
-    location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "now",
-    process: PROCESS_TAKE_HOME,
-    stack: ["TypeScript", "USDC", "EVM"],
-    description: {
-      summary:
-        "Own the payment path: confirmed USDC in, internal ledger out, risk gate in between. Settlement timing and reconciliation. A deposit, a webhook, and the books have to match.",
-      about:
-        "We are looking for a payments engineer to own our USDC deposit path: confirmed money in, internal ledger out, risk gate in between. You will keep webhooks, on-chain receipts, and internal balances consistent — when a deposit lands, the books have to match. This is an engineering seat reporting to Alvin, Head of Engineering. PnL reporting and trading bots are handled elsewhere.",
-      responsibilities: [
-        "Build deposit and settlement flows: webhooks, confirmations, idempotent ledger writes",
-        "Keep on-chain receipts and internal balances consistent",
-        "Put limits, pause, and an explained reject on treasury movement",
-        "Work with Backend and Smart Contract so settlement matches the chain",
-        "Document retries, double-credit, delayed confirmation, and how you unwind them",
-      ],
-      requirements: [
-        "You have shipped production payment, treasury, or similarly unforgiving money-movement systems",
-        "Webhooks, idempotency, and reconciling an external source of truth to a ledger",
-        "Enough EVM literacy to treat a confirmed transfer as a source document",
-      ],
-      niceToHave: [
-        "USDC, Circle, or EIP-3009 in production",
-        "A live treasury or payments ops surface",
-      ],
-    },
-  },
-  {
-    id: "risk-engineer",
-    team: "Engineering",
-    title: "Risk Engineer",
-    focus: "Limits and kill switches in the order path. Not the bot itself. Not the finance books.",
-    compensation: "$140k–$200k",
-    location: "Remote",
-    reportsTo: "Alvin, Head of Engineering",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
-    stack: ["TypeScript", "Python"],
-    description: {
-      summary:
-        "Encode notional, concentration, drawdown, and kill switches so execution cannot bypass them. If a control is not in the path, it does not exist.",
-      about:
-        "We are looking for a risk engineer to encode notional, concentration, drawdown, and kill switches so execution cannot bypass them. You will put controls in the path — if a limit is not enforced live, it does not exist. This is an engineering seat reporting to Alvin, Head of Engineering. The bot process and finance books are out of scope.",
-      responsibilities: [
-        "Specify and implement pre-trade and in-flight controls",
-        "Show current usage vs. limit to the desk, not a daily PDF",
-        "Alert on real breach, not noise",
-      ],
-      requirements: [
-        "You have built or operated controls in trading, payments, or similar production",
-        "You can encode policy as code and prove it fired",
-        "You can talk to traders and engineers without a translation layer",
-      ],
-      niceToHave: [
-        "Circuit breakers or kill-switch design",
-        "Live book market-risk or operational-risk work",
-      ],
-    },
-  },
-  {
-    id: "quantitative-algo-trader",
-    team: "Markets",
-    title: "Quantitative / Algo Trader",
-    focus: "Systematic signals and live execution under written limits. Not on-chain venue picking.",
-    compensation: "$160k–$280k",
-    compensationNote: "Base + performance",
-    location: "Remote",
-    reportsTo: "Mikle, Head of Trading",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
-    stack: ["Python"],
-    description: {
-      summary:
-        "Research and run systematic trading inside a written risk framework. Costs, capacity, and drawdown are part of the claim. No unconstrained alpha stories.",
-      about:
-        "We are looking for a quantitative trader to research and run systematic strategies inside our written risk framework. You will treat costs, capacity, and drawdown as part of the claim — not unconstrained alpha stories. This is a markets seat reporting to Mikle, Head of Trading. On-chain venue selection is handled elsewhere.",
-      responsibilities: [
-        "Research signals and execution with costs and slippage in the loop",
-        "Run live books under written limits; cut risk when the regime says so",
-        "Keep research code and production bots from diverging",
-      ],
-      requirements: [
-        "Live systematic or semi-systematic trading, not only backtests",
-        "You can discuss edge without hiding turnover, fees, or left-tail",
-        "You accept that risk controls can override a signal",
-      ],
-      niceToHave: [
-        "Crypto CEX microstructure",
-        "Python research someone else can rerun",
-      ],
-    },
-  },
-  {
-    id: "defi-onchain-trader",
-    team: "Markets",
-    title: "DeFi / On-chain Trader",
-    focus: "EVM venue selection, liquidity, and execution. Not CEX systematic research.",
-    compensation: "$130k–$220k",
-    compensationNote: "Base + performance",
-    location: "Remote",
-    reportsTo: "Mikle, Head of Trading",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
-    stack: ["EVM"],
-    description: {
-      summary:
-        "On-chain markets are part of the book. Choose venues, size to liquidity, and execute with an exit plan. Protocol, oracle, and exit risk are the job.",
-      about:
-        "We are looking for an on-chain trader to source and execute on EVM venues as part of the book. You will size to liquidity, execute with an exit plan, and treat protocol, oracle, and exit risk as core work. This is a markets seat reporting to Mikle, Head of Trading. CEX systematic research is handled elsewhere.",
-      responsibilities: [
-        "Source and execute on EVM venues with explicit size, slippage, and exit plans",
-        "Assess protocol and operational risk before capital is committed",
-        "Keep a record of fills, failed transactions, and dropped venues",
-      ],
-      requirements: [
-        "Hands-on EVM trading or treasury execution — you have moved size",
-        "You can explain a pool, a router, and a failure mode without a jargon thread",
-        "Comfortable with engineers on allowances, MEV, and settlement",
-      ],
-      niceToHave: [
-        "MEV-aware execution habits",
-        "Stuck-exit or bad-oracle incident experience",
-      ],
-    },
-  },
-  {
-    id: "product-manager",
-    team: "Product",
-    title: "Product Manager",
-    focus: "Sequence of Trading, Staking, Hybrid, and the desk. Not visual design. Not engineering delivery.",
-    compensation: "$135k–$190k",
-    location: "Remote",
-    reportsTo: "Januario Ximenes, CEO",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
+    engagement: [...ENGAGEMENT, "Open to fixed-price milestones for clearly defined mandates"],
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("business / commercial"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
     stack: [],
+    bridge:
+      "Coming from SaaS, tech, or another industry? That works. If you can sell something complex to a smart buyer, we will teach you our domain.",
+    hiring: "now",
     description: {
       summary:
-        "Decide what ships, what waits, and what we refuse. Risk limits and disclosures are product constraints, not a later overlay.",
+        "Open and grow client and partner relationships. Own the pipeline from first contact to signed agreement — consultative conversations, not high-volume cold dialing.",
       about:
-        "We are looking for a product manager to decide what ships, what waits, and what we refuse across Trading, Staking, Hybrid, and the desk. You will treat risk limits and disclosures as product constraints from day one — not a later overlay. This seat reports to Januario Ximenes, CEO. Visual design and engineering delivery are out of scope.",
+        "We are looking for a Business Development Manager to open and grow our client and partner relationships. You will be the first voice many people hear from Ocean Park Asset, and you will own the pipeline from first contact to signed agreement. This role suits someone who enjoys real conversations with sophisticated people — not high-volume cold dialing. The people you talk to are informed, ask sharp questions, and reward clarity.",
       responsibilities: [
-        "Sequence the investing stack for private clients and operators",
-        "Write specs small enough that engineering and markets can both sign",
-        "Turn feedback into decisions, not an endless backlog",
+        "Build and own the pipeline of prospective clients and institutional partners",
+        "Run discovery conversations and translate our capabilities into plain language",
+        "Manage the full cycle: outreach, qualification, proposal, negotiation, close",
+        "Represent Ocean Park Asset at industry events, online communities, and in partner conversations",
+        "Feed market signal back to leadership — what people ask for, object to, and compare us against",
+        "Keep pipeline reporting accurate enough to forecast from",
       ],
       requirements: [
-        "Shipped product in markets, fintech, or a similarly constrained domain",
-        "You can write a one-page spec",
-        "You will say no to work that does not earn its complexity",
+        "Proven business development or sales experience with a consultative cycle",
+        "Comfort selling something technical to an informed buyer",
+        "Clear written and spoken communication — you can explain a complex product without jargon",
+        "Self-directed pipeline building; you do not wait to be handed leads",
+        "Comfortable operating remotely with high autonomy",
       ],
       niceToHave: [
-        "Trading, custody, or portfolio products",
-        "Enough technical literacy to talk to engineers without performing it",
+        "Background in fintech, asset management, trading, or Web3",
+        "Existing network among investors, family offices, or institutional partners",
+        "Experience with CRM tooling and structured pipeline management",
+        "Any relevant licensing or regulatory registration in your jurisdiction",
       ],
     },
   },
   {
-    id: "product-designer",
-    team: "Product",
-    title: "Product Designer",
-    focus: "Institutional product UI. Not marketing campaigns. Not frontend implementation.",
-    compensation: "$115k–$165k",
+    id: "client-relations-manager",
+    track: "Business",
+    team: "Business",
+    title: "Client Relations Manager",
+    focus: "Own the client experience after signing — the reason they stay.",
+    cardLine: "Onboarding, reporting, and the hard days",
+    rateLabel: "$90–$160/hr",
+    compensation: "$90 – $160 USD / hour",
+    compensationNote: "Open to fixed-price milestones for clearly defined scopes",
     location: "Remote",
-    reportsTo: "Mykhailo, CTO",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
-    stack: ["Figma"],
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("client experience"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
+    stack: [],
+    bridge:
+      "Finance background welcome, but not required. If you have looked after demanding clients well somewhere else, we will teach you the domain.",
+    hiring: "now",
     description: {
       summary:
-        "Design the surfaces clients and operators use: access flows and desk views. Quiet, dense, readable. The public site and the product should feel like one house.",
+        "Own the client experience after signing. Onboarding, reporting, and the conversation nobody else wants to have on a difficult market day.",
       about:
-        "We are looking for a product designer for the surfaces clients and operators use every day — access flows, desk views, and quiet dense interfaces where market state reads in seconds. The public site and product should feel like one house. This seat reports to Mykhailo, CTO. Marketing campaigns and frontend implementation are handled elsewhere.",
+        "We are looking for a Client Relations Manager to own the client experience after signing. Business development gets someone in the door — you are the reason they stay. This is a role for someone genuinely good with people: calm under pressure, warm in writing, and trusted with the conversation nobody else wants to have on a difficult market day.",
       responsibilities: [
-        "Design desk and account surfaces where market state is readable in seconds",
-        "Specify empty, error, and loading states with Frontend",
-        "Keep type, space, and hierarchy tighter than decoration",
+        "Own onboarding for new clients and make the first thirty days effortless",
+        "Serve as the primary point of contact for ongoing client questions",
+        "Prepare and deliver clear, timely client reporting",
+        "Anticipate concerns and communicate proactively, especially in volatile periods",
+        "Track retention, satisfaction, and account health; flag risk early",
+        "Bring the client's perspective back into product and operations decisions",
       ],
       requirements: [
-        "A portfolio of shipped product UI, not only brand decks",
-        "You can design data-heavy interfaces without clutter",
-        "You take engineering and risk constraints as part of the work",
+        "Experience in account management, client relations, or customer success",
+        "Outstanding written communication — most of this job happens in writing",
+        "Composure and empathy in high-stakes conversations",
+        "Organized enough that no client question ever goes unanswered",
+        "Comfortable working remotely across time zones",
       ],
       niceToHave: [
-        "Trading or fintech consoles",
-        "A tight design system you actually maintained",
+        "Experience with financial, investment, or high-net-worth clients",
+        "Familiarity with reporting tools, CRM systems, or client portals",
+        "A second language",
+        "Background in a regulated industry",
       ],
     },
   },
   {
     id: "marketing-manager",
-    team: "Operations",
+    track: "Business",
+    team: "Business",
     title: "Marketing Manager",
-    focus: "Waitlist quality and public narrative. Not product design. No return promises.",
-    compensation: "$105k–$155k",
+    focus: "Own brand, growth, and how we sound in the market.",
+    cardLine: "Brand, campaigns, and the channels",
+    rateLabel: "$95–$170/hr",
+    compensation: "$95 – $170 USD / hour",
+    compensationNote: "Open to fixed-price milestones for clearly defined campaigns",
     location: "Remote",
-    reportsTo: "Januario Ximenes, CEO",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("marketing / strategy"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
     stack: [],
+    bridge:
+      "Coming from SaaS or tech rather than finance? That is fine. Strong marketing instincts travel; we will teach you the domain.",
+    hiring: "now",
     description: {
       summary:
-        "Build a precise presence: waitlist, hiring signal, and copy that matches how we invest. If a line needs a guaranteed return to work, it does not ship.",
+        "Own brand, growth, and go-to-market across our investment technology and blockchain work. A builder, not a coordinator.",
       about:
-        "We are looking for a marketing manager to build a precise public presence — waitlist quality, hiring signal, and copy that matches how we actually invest. If a line needs a guaranteed return to work, it does not ship. This seat reports to Januario Ximenes, CEO. Product design is out of scope.",
+        "We are looking for a Marketing Manager to own brand, growth, and go-to-market execution across our investment technology and blockchain initiatives. You will plan campaigns, manage channels, and position what we build clearly for clients, partners, and the wider market. We want a builder, not a coordinator. You will have unusual freedom over how we sound and where we show up.",
       responsibilities: [
-        "Own site, LinkedIn, and inbound narrative, consistent with risk disclosure",
-        "Run the waitlist as a pipeline: who, why, whether they fit",
-        "Support hiring with copy that sounds like the work, not a job board",
+        "Plan and execute marketing strategy across content, social, email, community, and paid channels",
+        "Lead go-to-market campaigns for product launches and new capabilities",
+        "Own brand messaging, positioning, and creative direction",
+        "Track funnel metrics, campaign performance, and growth KPIs",
+        "Coordinate with business, product, and design on launches and announcements",
+        "Build and nurture community across relevant fintech and Web3 audiences",
       ],
       requirements: [
-        "Marketing or communications for a serious B2B, fintech, or private-client shop",
-        "You can write in short sentences without slogans",
-        "You measure inbound quality, not only impressions",
+        "Proven marketing experience in fintech, crypto, Web3, or SaaS",
+        "Strong grasp of digital channels, campaign execution, and brand storytelling",
+        "Ability to write clear marketing copy and brief creative assets",
+        "Analytical mindset with real experience measuring ROI and conversion",
+        "Comfortable operating in a remote, fast-moving environment",
       ],
       niceToHave: [
-        "Waitlists or invitation-only products",
-        "Crypto fluency without the influencer register",
+        "Existing audience or network in fintech or Web3 communities",
+        "SEO, content marketing, or influencer and partnership experience",
+        "Design sensibility, or hands-on ability in Figma",
+        "Familiarity with product-led growth and launch playbooks",
       ],
     },
   },
   {
-    id: "finance-analyst",
-    team: "Operations",
-    title: "Financial Operations Analyst",
-    focus: "Books, fees, and reporting. Not payment engineering. Not investment advice.",
-    compensation: "$100k–$150k",
+    id: "ui-ux-designer",
+    track: "Business",
+    team: "Business",
+    title: "UI/UX Designer",
+    focus: "Product, brand, and the screens people look at. One designer seat.",
+    cardLine: "Product, brand, and the interface",
+    rateLabel: "$95–$170/hr",
+    compensation: "$95 – $170 USD / hour",
+    compensationNote: "Open to fixed-price milestones for clearly defined design scopes",
     location: "Remote",
-    reportsTo: "Januario Ximenes, CEO",
-    hiring: "open",
-    process: PROCESS_APPLICATION,
-    stack: ["SQL"],
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("design / product"),
+    processSummary: "Short application with a portfolio, then a conversation with leadership.",
+    stack: ["Figma", "UI", "UX"],
+    bridge:
+      "Coming from brand, graphic, or marketing design? That works if you can also design a flow. Coming from product or UX? That works if you can also make something look like it belongs here. We want one person who can do both — not a coordinator, and not posters only.",
+    hiring: "now",
     description: {
       summary:
-        "Keep operating expenses, fees, and desk reporting reconcilable. If a figure cannot be tied to a venue, a wallet, or a bank line, it is not done.",
+        "Own how Ocean Park Asset looks and works on screen. Product UI, brand, and the states in between — one designer seat, not two.",
       about:
-        "We are looking for a financial operations analyst to keep operating expenses, fees, and desk reporting reconcilable. Every figure should tie to a venue, a wallet, or a bank line — if it cannot, it is not done. This seat reports to Januario Ximenes, CEO. Payment engineering and investment advice are out of scope.",
+        "We are looking for a UI/UX Designer to own how Ocean Park Asset looks and works on screen. This is one seat for product and general design. You will shape the desk, the account, and how we show up — not hand files to someone else. Brand people who can design a product are welcome. Product people who can hold a visual system are welcome. If you only make posters, this is the wrong listing.",
       responsibilities: [
-        "Build reporting for PnL, fees, and operating costs with an audit trail",
-        "Reconcile venue, chain, and internal ledgers",
-        "Support internal packs that disclose risk and do not imply guaranteed returns",
+        "Design the surfaces operators and clients actually use — desk, risk states, onboarding, account",
+        "Hold the visual system: type, color, spacing, and what we refuse to decorate",
+        "Treat empty, loading, error, and blocked as first-class states, not a later pass",
+        "Make brand and campaign work when we need it — site, decks, launches — without letting it eat the product",
+        "Work with frontend so what you design is what ships",
+        "Test flows with real tasks, not opinions about taste",
       ],
       requirements: [
-        "Reporting, FP&A, or operations finance where reconciliation actually mattered",
-        "Spreadsheet and SQL fluency; you can find the break",
-        "Clear writing for non-finance readers, including risk caveats",
+        "A portfolio we can open — product, UI, brand, or a mix. Show the work, not a moodboard of other people's shots",
+        "You have designed a real interface, not only social tiles",
+        "You can explain a flow in writing before you decorate it",
+        "Comfortable in Figma, or the tool you actually ship from",
+        "Comfortable working remotely with high autonomy",
       ],
       niceToHave: [
-        "Trading firm, fund, or crypto treasury operations",
-        "Fee waterfalls or client reporting packs",
+        "A trading, fintech, or ops console in the book",
+        "Brand systems you have maintained, not only a logo",
+        "Motion used to explain state, not to decorate",
+        "Some HTML/CSS — enough to talk to engineering without a translator",
+      ],
+    },
+  },
+  {
+    id: "operations-manager",
+    track: "Business",
+    team: "Business",
+    title: "Operations Manager",
+    focus: "Make the company run — process, vendors, and the systems in between.",
+    cardLine: "Process, vendors, and the unblocking",
+    rateLabel: "$100–$175/hr",
+    compensation: "$100 – $175 USD / hour",
+    compensationNote: "Open to fixed-price milestones for clearly defined projects",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("operations / process"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
+    stack: [],
+    bridge:
+      "Operations experience from tech, SaaS, or another industry counts. We care how you think about process, not which sector taught you.",
+    hiring: "now",
+    description: {
+      summary:
+        "Own the processes, vendors, and internal systems that keep execution smooth. The work that is invisible when it is done well.",
+      about:
+        "We are looking for an Operations Manager to make the company run. You will own the processes, vendors, and internal systems that keep execution smooth as we scale — the work that is invisible when it is done well and impossible to ignore when it is not. This role suits someone who sees a messy process and cannot resist fixing it.",
+      responsibilities: [
+        "Own day-to-day operational workflows and internal process design",
+        "Manage relationships with external providers, vendors, and service partners",
+        "Coordinate cross-functional projects and keep delivery on schedule",
+        "Build documentation and playbooks so knowledge is not stuck in people's heads",
+        "Identify bottlenecks and automate or eliminate them",
+        "Support reconciliation, reporting, and record-keeping alongside finance and compliance",
+      ],
+      requirements: [
+        "Experience in operations, business operations, or project management",
+        "Strong process thinking — you build systems, not one-off fixes",
+        "Highly organized, with a bias toward writing things down",
+        "Comfortable with spreadsheets, project tooling, and workflow automation",
+        "Able to work independently in a remote, distributed team",
+      ],
+      niceToHave: [
+        "Experience in financial services, trading operations, or a regulated industry",
+        "Familiarity with automation tools, APIs, or no-code platforms",
+        "Exposure to vendor management or procurement",
+        "Project management certification, if you have one — not required",
+      ],
+    },
+  },
+  {
+    id: "financial-analyst",
+    track: "Business",
+    team: "Business",
+    title: "Financial Analyst",
+    focus: "Turn markets and performance data into decisions people can act on.",
+    cardLine: "Research, attribution, and the memo",
+    rateLabel: "$130–$220/hr",
+    compensation: "$130 – $220 USD / hour",
+    compensationNote: "Open to fixed-price milestones for defined research mandates",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("research / analytical"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
+    stack: [],
+    hiring: "now",
+    description: {
+      summary:
+        "Sit close to the quantitative systems and translate what they produce into research, reporting, and insight leadership and clients can act on.",
+      about:
+        "We are looking for a Financial Analyst to turn markets and performance data into decisions. You will sit close to our quantitative systems and translate what they produce into research, reporting, and insight that leadership and clients can act on. If you like the analytical half of finance more than the political half, this is a good seat.",
+      responsibilities: [
+        "Conduct market, sector, and strategy research",
+        "Analyze performance, attribution, and risk metrics across our systems",
+        "Build and maintain dashboards and recurring reporting",
+        "Write clear investment memos and research notes for internal and client use",
+        "Support quantitative model evaluation with data analysis and backtesting",
+        "Partner with the engineering team to improve what our data can tell us",
+      ],
+      requirements: [
+        "Experience in financial analysis, investment research, or data analysis",
+        "Strong Excel skills, plus SQL or Python for working with real datasets",
+        "Ability to write — an analysis nobody can read is not a good analysis",
+        "Genuine curiosity about markets and quantitative methods",
+        "Comfortable working remotely with high independence",
+      ],
+      niceToHave: [
+        "Experience with quantitative strategies, algorithmic trading, or risk modeling",
+        "Exposure to digital assets or blockchain data",
+        "CFA, FRM, or a similar credential, in progress or complete",
+        "Experience building dashboards in BI tooling",
+      ],
+    },
+  },
+  {
+    id: "compliance-officer",
+    track: "Business",
+    team: "Business",
+    title: "Compliance Officer",
+    focus: "Build the compliance function. Design the framework — do not inherit a binder.",
+    cardLine: "The framework, built from scratch",
+    rateLabel: "$145–$250/hr",
+    compensation: "$145 – $250 USD / hour",
+    compensationNote: "Open to retainer or fractional arrangements for senior candidates",
+    location: "Remote",
+    engagement: [
+      ...ENGAGEMENT,
+      "Fractional or retainer arrangements welcome for senior candidates",
+    ],
+    whyJoin: WHY_BUSINESS,
+    hiringSteps: businessSteps("compliance / regulatory"),
+    processSummary: PROCESS_SUMMARY_BUSINESS,
+    stack: [],
+    hiring: "now",
+    description: {
+      summary:
+        "Build the compliance function from the ground up. Design the framework, own KYC/AML, and advise leadership before a product ships — not after.",
+      about:
+        "We are looking for a Compliance Officer to build our compliance function from the ground up. This is not a box-ticking role. You will design the framework rather than inherit someone else's binder, and you will have direct access to leadership on decisions that matter. For the right person this is rare: full ownership of a function at a company that treats compliance as infrastructure, not as an obstacle.",
+      responsibilities: [
+        "Design and maintain our compliance framework, policies, and controls",
+        "Own KYC, AML, and client onboarding due diligence",
+        "Monitor regulatory developments across the jurisdictions we operate in",
+        "Manage record-keeping, reporting, and any regulator-facing correspondence",
+        "Advise leadership on the regulatory implications of new products and markets",
+        "Partner with operations to embed controls into workflows rather than bolt them on afterwards",
+      ],
+      requirements: [
+        "Experience in compliance, risk, legal, or regulatory affairs within financial services",
+        "Working knowledge of KYC/AML requirements and client suitability standards",
+        "Sound judgment — you can tell a real risk from a theoretical one",
+        "Clear communication with non-specialists",
+        "Comfortable building something new rather than maintaining something existing",
+      ],
+      niceToHave: [
+        "Experience with digital assets, fintech, or cross-border regulatory regimes",
+        "Relevant licensing or certification (Series 65/66, FCA approval, MiFID II experience, CAMS, or the equivalent in your jurisdiction)",
+        "Experience standing up a compliance function at an early-stage firm",
+        "Familiarity with compliance and monitoring tooling",
+      ],
+    },
+  },
+  {
+    id: "backend-developer",
+    track: "Engineering",
+    team: "Engineering",
+    title: "Backend Developer",
+    focus: "APIs and durable state for the risk path. Not the UI. Not the decision policy.",
+    cardLine: "TypeScript · Node · APIs",
+    rateLabel: "$150–$250/hr",
+    compensation: "$150 – $250 USD / hour",
+    compensationNote: "Depending on experience. Open to a longer collaboration after the first engagement",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_ENGINEERING,
+    hiringSteps: engineeringSteps(
+      "A two-hour practical on a real risk-check API. You add rules, return a clear allowed or blocked decision, and show it through the existing UI. Demo session. No wallet or chain setup.",
+    ),
+    processSummary: PROCESS_SUMMARY_ENGINEERING,
+    stack: ["TypeScript", "Node.js", "PostgreSQL", "REST"],
+    bridge:
+      "If you have integrated an exchange, a payments webhook, or any API that lies sometimes, you already know the texture of this work. Trading experience is useful. It is not a gate.",
+    hiring: "now",
+    description: {
+      summary:
+        "Own the APIs and pipelines the execution stack depends on. A request is allowed or blocked, with a reason, and the state still makes sense after a retry.",
+      about:
+        "We are looking for a Backend Developer to own the APIs and pipelines our execution stack depends on. Market data comes in. A risk decision goes out. The state in between has to survive a retry, a duplicate, and a bad minute. You will work in TypeScript. The interesting problems are idempotency, partial failure, and a response someone can debug without you on the call. This seat is the API and the data behind it. The trading UI is a different role. The decision policy is a different role. You will talk to both. You will not be asked to be both.",
+      responsibilities: [
+        "Design APIs for orders, positions, risk checks, and account state",
+        "Make every risk decision explicit: allowed or blocked, with a reason, idempotent under retries",
+        "Ingest and normalize market data the rest of the system can trust",
+        "Handle the ordinary failures on purpose: duplicate requests, unknown symbols, cooldowns, bad amounts",
+        "Keep paper and live on the same shapes, with different capital",
+        "Write the short note that explains the tradeoff, not just the diff",
+      ],
+      requirements: [
+        "You have shipped backend code where a wrong state is expensive",
+        "TypeScript, or a close neighbor, in production. You can model state without a diagram tool",
+        "You have integrated an external API and lived with timeouts, retries, and partial failure",
+        "You can explain a design in a short note before it merges",
+        "Comfortable working remotely, mostly async, with high autonomy",
+      ],
+      niceToHave: [
+        "Exchange, broker, or on-chain event APIs",
+        "PostgreSQL, and a habit of making writes idempotent",
+        "A risk, payments, or trading system you still think about",
+        "Tests you actually run before you say it is done",
+      ],
+    },
+  },
+  {
+    id: "frontend-developer",
+    track: "Engineering",
+    team: "Engineering",
+    title: "Frontend Developer",
+    focus: "The screens people trust when the answer is allowed, blocked, or stale.",
+    cardLine: "TypeScript · React · Next.js",
+    rateLabel: "$140–$230/hr",
+    compensation: "$140 – $230 USD / hour",
+    compensationNote: "Depending on experience. Open to a longer collaboration after the first engagement",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_ENGINEERING,
+    hiringSteps: engineeringSteps(
+      "A two-hour practical on a real risk-gate panel. Loading, empty, error, and a decision someone can read in one glance. Demo session. No wallet or chain setup.",
+    ),
+    processSummary: PROCESS_SUMMARY_ENGINEERING,
+    stack: ["TypeScript", "React", "Next.js", "Tailwind"],
+    bridge:
+      "You do not need a wallet, a chain, or a design degree. You need a dense dark interface to feel obvious. If you have shipped a console, a trading view, or any UI where the wrong state costs someone time, you already know the job.",
+    hiring: "now",
+    description: {
+      summary:
+        "Build the surfaces operators look at when a check passes, fails, or goes stale. TypeScript, React, and Next.js. States are the work, not a later pass.",
+      about:
+        "We are looking for a Frontend Developer who cares what a screen feels like when the answer is no. Operators and clients look at live state: a check that passed, a check that did not, a number that is stale, a session that has not started. You will build those surfaces in TypeScript, React, and Next.js. Loading, empty, error, and disabled are the work, not a polish pass you add if there is time. Backend risk rules are a different seat. You should be able to read an API. You should not have to invent one to do this job well.",
+      responsibilities: [
+        "Ship live views for decisions, positions, and risk state",
+        "Treat loading, empty, error, disabled, and stale data as first-class states",
+        "Write validation and error copy that helps someone fix the mistake",
+        "Hold the interface together when the data is moving and when it is not",
+        "Keep the visual language quiet. Decoration that fights a number does not ship",
+        "Work with backend on the contract: what the UI promises has to be what the API returns",
+      ],
+      requirements: [
+        "TypeScript and React in production, on a surface more complex than a marketing page",
+        "You have handled real-time or frequently changing data, and the failure modes that come with it",
+        "You design the empty state before you design the happy path",
+        "You can look at a dense screen and say what should be removed",
+        "Comfortable working remotely, mostly async, with high autonomy",
+      ],
+      niceToHave: [
+        "A trading, ops, or payments console you shipped",
+        "Charts (canvas or a library) used for decisions, not decoration",
+        "Reconnect and stale-data handling you have debugged in production",
+        "Next.js, or another framework you can defend without reciting the docs",
+      ],
+    },
+  },
+  {
+    id: "full-stack-developer",
+    track: "Engineering",
+    team: "Engineering",
+    title: "Full-Stack Developer",
+    focus: "The rule in the API and the screen that shows it. One feature, both ends.",
+    cardLine: "API and UI, one contract",
+    rateLabel: "$175–$280/hr",
+    compensation: "$175 – $280 USD / hour",
+    compensationNote: "Depending on experience. Open to a longer collaboration after the first engagement",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_ENGINEERING,
+    hiringSteps: engineeringSteps(
+      "A two-hour practical across both sides: risk rules in the API, and a UI that shows one allowed path and one blocked path without hedging. Demo session. No wallet or chain setup.",
+    ),
+    processSummary: PROCESS_SUMMARY_ENGINEERING,
+    stack: ["TypeScript", "Node.js", "React", "Next.js"],
+    bridge:
+      "This is not a seat where each half is shallow. It is for someone who has shipped a vertical slice and can still explain the tradeoff a week later.",
+    hiring: "now",
+    description: {
+      summary:
+        "Hold both ends of a small system. A rule in the API and the screen that shows the decision are one feature. TypeScript on both sides.",
+      about:
+        "We are looking for a Full-Stack Developer who can hold both ends of a small system without dropping the contract between them. A rule in the API and the screen that shows it are one feature. If the backend returns blocked and the UI looks unsure, that is your bug. You will work in TypeScript on both sides — Node for the risk path, React and Next.js for the surface. You are not covering for two missing people. You are the person who can change the rule and the panel that displays it in the same afternoon, and keep them honest.",
+      responsibilities: [
+        "Ship thin vertical slices: a risk rule, the API response, and the UI that states it",
+        "Keep allowed and blocked unambiguous on both sides of the contract",
+        "Handle retries, bad input, and empty sessions without a special case buried in the component",
+        "Choose what not to build when two hours would be wasted on a third layer",
+        "Write the tradeoff down. The diff is not the explanation",
+        "Leave the next person a path through the code that does not require you",
+      ],
+      requirements: [
+        "You have shipped production work on both an API and the UI that calls it",
+        "TypeScript across the stack, or the ability to be fluent in it quickly",
+        "You notice when the frontend and the backend disagree, and you fix the contract, not the symptom",
+        "You can demo one success and one failure without narrating over a broken state",
+        "Comfortable working remotely, mostly async, with high autonomy",
+      ],
+      niceToHave: [
+        "A risk, payments, or trading flow you owned end to end",
+        "PostgreSQL or another database you have had to reconcile",
+        "A habit of one small test on the rule that actually bites",
+        "Comfort reading a market or product constraint without waiting for a ticket",
+      ],
+    },
+  },
+  {
+    id: "ai-developer",
+    track: "Engineering",
+    team: "Engineering",
+    title: "AI Developer",
+    focus: "The decision policy. ENTER, HOLD, or EXIT. Not a language model.",
+    cardLine: "Control loop · not an LLM seat",
+    rateLabel: "$190–$320/hr",
+    compensation: "$190 – $320 USD / hour",
+    compensationNote: "Depending on experience. Open to a longer collaboration if the first one is good",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_ENGINEERING,
+    hiringSteps: engineeringSteps(
+      "A two-hour practical inside an existing price loop. You ignore noise, act on a real move, and keep a written risk limit intact — including when price gaps. We do not score profit. We read whether the policy is honest.",
+    ),
+    processSummary: PROCESS_SUMMARY_ENGINEERING,
+    stack: ["JavaScript", "Node.js", "Risk limits"],
+    bridge:
+      "JavaScript is what the loop runs today. TypeScript or Python you can hand to someone else is welcome. The dialect is not the interview. If you wanted to fine-tune a model or wrap a chat API, this is the wrong seat, and we would rather say that here.",
+    hiring: "now",
+    description: {
+      summary:
+        "Write the decision policy the system actually runs. On each tick: enter, hold, or exit. Risk is a number. This is not an LLM role.",
+      about:
+        "We are looking for an AI Developer to write the decision policy our systems actually run. A price loop is already in motion. On each tick your code returns enter, hold, or exit. One position. No leverage. Risk is measured, not suggested — a limit that is not in the decision is not a limit. Size matters more than a clever exit, because a gap can hit before your next chance to get out. If that is the kind of AI work you want, you will like it here. There is no model to fine-tune, no prompt to chain, and no chatbot to wrap.",
+      responsibilities: [
+        "Write decision policies that ignore noise and act when the move is real",
+        "Size a position so a gap cannot break the loss limit",
+        "Exit when the reason to be in is gone, or when risk is threatened",
+        "Keep the live loop and any research behavior from drifting apart",
+        "Explain, in plain language, why the risk wall still holds",
+        "Leave the engine and the risk constants alone. Fix the policy, not the ruler",
+      ],
+      requirements: [
+        "You have built control logic, trading rules, or another system where a bad decision has a number attached",
+        "JavaScript, TypeScript, or Python that someone else can rerun",
+        "You treat drawdown, position size, and costs as part of the design",
+        "You will not 'fix' a failing policy by editing the limits",
+        "Comfortable working remotely, mostly async, with high autonomy",
+      ],
+      niceToHave: [
+        "A live or paper strategy you have had to turn off",
+        "You have sized a position for a gap, not only for the average day",
+        "Python research someone else can rerun, if that is how you think",
+        "Enough market intuition to know noise from a move, and enough humility to encode it",
+      ],
+    },
+  },
+  {
+    id: "quantitative-algo-trader",
+    track: "Engineering",
+    team: "Engineering",
+    title: "Quantitative / Algo Trader",
+    focus: "The live book. When it is on, when it is off, and the fill in between.",
+    cardLine: "Live book · not the policy seat",
+    rateLabel: "$175–$290/hr",
+    compensation: "$175 – $290 USD / hour",
+    compensationNote: "Depending on experience. Open to a longer collaboration if the first one is good",
+    location: "Remote",
+    engagement: ENGAGEMENT,
+    whyJoin: WHY_ENGINEERING,
+    hiringSteps: engineeringSteps(
+      "A two-hour practical on a live or replayed session. You say when you would be in, when you would be out, and where size has to come off — including a gap. We do not score profit. We read whether the judgment is honest.",
+    ),
+    processSummary: PROCESS_SUMMARY_ENGINEERING,
+    stack: ["Markets", "Execution", "Risk"],
+    bridge:
+      "If you have traded a systematic book — crypto, futures, or cash equity — and had to turn it off, you already know the job. A backtest is not enough. Writing the decision policy is a different role. That is the AI Developer seat.",
+    hiring: "now",
+    description: {
+      summary:
+        "Own the live book. A policy can return enter, hold, or exit. You decide whether that book should be running, in what size, and when it comes off.",
+      about:
+        "We are looking for a Quantitative / Algo Trader to own the live book. A policy can return enter, hold, or exit. You decide whether that book should be running, in what size, and when it comes off. This is not the AI Developer seat. That person writes the decision rule. You live with the tape, the fill, and the day the rule is wrong. We do not hire you to stare at a dashboard and hope.",
+      responsibilities: [
+        "Own when a strategy is on, reduced, or flat",
+        "Size and execute so a fill and a gap are part of the design, not a surprise",
+        "Watch live microstructure: liquidity, spread, session, and when the signal is noise",
+        "Feed what the tape did back to the people who write the policy",
+        "Keep a written record of why the book was on",
+        "Protect the risk wall. You do not 'fix' a bad day by moving the limit",
+      ],
+      requirements: [
+        "You have traded a real or serious paper book where a bad decision had a number",
+        "You can explain a session in writing: what you did, what you skipped, and why",
+        "You treat costs, slippage, and gaps as part of the trade",
+        "You will not override a risk limit to stay in",
+        "Comfortable working remotely, mostly async, with high autonomy",
+      ],
+      niceToHave: [
+        "Crypto or 24-hour markets",
+        "Python or another research stack someone else can rerun",
+        "Experience turning a systematic strategy on and off, not only discretionary clicking",
+        "Enough engineering to read the policy without owning it",
       ],
     },
   },
@@ -463,25 +712,9 @@ export function otherRoles(): CareerRole[] {
   return CAREER_ROLES.filter((r) => r.hiring !== "now");
 }
 
-export function rolesByTeam(
-  roles: CareerRole[] = CAREER_ROLES,
-): { team: CareerTeam; blurb: string; roles: CareerRole[] }[] {
-  return CAREER_TEAMS.map((team) => ({
-    team,
-    blurb: CAREER_TEAM_COPY[team].blurb,
-    roles: roles.filter((r) => r.team === team),
-  })).filter((desk) => desk.roles.length > 0);
+export function rolesInTrack(track: CareerTrack): CareerRole[] {
+  return CAREER_ROLES.filter((r) => r.track === track);
 }
-
-/** "$140k–$200k" → yearly USD bounds for JobPosting schema. */
-export function compensationRangeUsd(comp: string): { min: number; max: number } | null {
-  const m = comp.replace(/,/g, "").match(/\$(\d+)\s*k\s*[–-]\s*\$(\d+)\s*k/i);
-  if (!m) return null;
-  return { min: Number(m[1]) * 1000, max: Number(m[2]) * 1000 };
-}
-
-/** ISO date for JobPosting schema only (not shown in UI). */
-export const CAREERS_POSTED = "2026-08-26";
 
 export function roleSummary(role: CareerRole): string {
   return role.description.summary ?? role.focus;
@@ -491,25 +724,19 @@ export function roleAbout(role: CareerRole): string {
   return role.description.about ?? roleSummary(role);
 }
 
-export function hiringIntro(roles: CareerRole[] = hiringNow()): string {
-  const n = roles.length;
-  if (n === 0) {
-    return "No active search right now. Strong profiles for the roles below are still read.";
-  }
-  const eng = roles.every((r) => r.team === "Engineering");
-  const words = ["", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-  const count = words[n] ?? String(n);
-  const seat = n === 1 ? "seat is" : "seats are";
-  const kind = eng ? " engineering" : "";
-  return `${count}${kind} ${seat} hiring now. Other roles stay listed — we read a strong profile when the fit is real.`;
+export function hiringIntro(): string {
+  const business = rolesInTrack("Business").length;
+  const engineering = rolesInTrack("Engineering").length;
+  return `${business} business roles and ${engineering} engineering seats are open. Remote contract work, with the rate on every listing.`;
 }
 
-export type ApplicationLinkProfile = "technical" | "general";
+export type ApplicationLinkProfile = "technical" | "general" | "design" | "trading";
 
-/** Engineering and product design need a work link; other seats only require LinkedIn. */
+/** Engineering needs a work link. Design needs a portfolio. Business roles only require LinkedIn. */
 export function roleApplicationProfile(role: CareerRole): ApplicationLinkProfile {
-  if (role.team === "Engineering") return "technical";
-  if (role.id === "product-designer") return "technical";
+  if (role.id === "ui-ux-designer") return "design";
+  if (role.id === "quantitative-algo-trader") return "trading";
+  if (role.track === "Engineering") return "technical";
   return "general";
 }
 
@@ -525,17 +752,37 @@ export function applicationLinkCopy(role: CareerRole): {
   secondLinkPlaceholder: string;
   secondLinkRequired: boolean;
 } {
-  if (roleApplicationProfile(role) === "technical") {
+  const profile = roleApplicationProfile(role);
+
+  if (profile === "technical") {
     return {
-      profile: "technical",
-      secondLinkLabel: "GitHub or Portfolio link",
-      secondLinkPlaceholder: "github.com/... or portfolio URL",
+      profile,
+      secondLinkLabel: "GitHub or portfolio",
+      secondLinkPlaceholder: "github.com/... or a project you can show",
       secondLinkRequired: true,
     };
   }
 
+  if (profile === "design") {
+    return {
+      profile,
+      secondLinkLabel: "Portfolio",
+      secondLinkPlaceholder: "Dribbble, Behance, Figma, or your site",
+      secondLinkRequired: true,
+    };
+  }
+
+  if (profile === "trading") {
+    return {
+      profile,
+      secondLinkLabel: "Work sample",
+      secondLinkPlaceholder: "Journal, research, or a system you can show",
+      secondLinkRequired: false,
+    };
+  }
+
   return {
-    profile: "general",
+    profile,
     secondLinkLabel: "Portfolio or relevant link",
     secondLinkPlaceholder: "Work sample or URL",
     secondLinkRequired: false,
@@ -551,11 +798,11 @@ export function validateApplicationLinks(
     return { ok: false, error: "Please add your LinkedIn profile URL." };
   }
 
-  const { secondLinkRequired } = applicationLinkCopy(role);
+  const { secondLinkRequired, secondLinkLabel } = applicationLinkCopy(role);
   const secondLink = githubOrPortfolio.trim();
 
   if (secondLinkRequired && !isUsefulApplicationLink(secondLink)) {
-    return { ok: false, error: "Please add a GitHub or portfolio link." };
+    return { ok: false, error: `Please add a ${secondLinkLabel.toLowerCase()} link.` };
   }
 
   if (secondLink && !isUsefulApplicationLink(secondLink)) {

@@ -42,7 +42,8 @@ html {
   .animate-float,
   .animate-pulse-glow,
   .animate-ticker,
-  .animate-ping {
+  .animate-ping,
+  .rc-cb-spin {
     animation: none !important;
   }
 
@@ -430,4 +431,33 @@ body::before {
 }
 .ticker-track:hover {
   animation-play-state: paused;
+}
+
+/* Official reCAPTCHA checkbox spinner timing from styles__ltr.css */
+@keyframes rc-cb-spin {
+  0% { transform: rotate(0deg); }
+  10% { transform: rotate(135deg); }
+  25% { transform: rotate(245deg); }
+  60% { transform: rotate(700deg); }
+  75% { transform: rotate(810deg); }
+  100% { transform: rotate(1080deg); }
+}
+.rc-cb-spin {
+  animation: rc-cb-spin 2.5s linear infinite;
+  transform-origin: center center;
+}
+
+@keyframes rc-cb-check {
+  from { stroke-dashoffset: 36; }
+  to { stroke-dashoffset: 0; }
+}
+.rc-cb-check path {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 0;
+  animation: rc-cb-check 0.32s ease-out forwards;
+}
+
+.rc-cb-box:hover .rc-cb-square,
+.rc-cb-box:focus-visible .rc-cb-square {
+  border-color: #4285f4;
 }

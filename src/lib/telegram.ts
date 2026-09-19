@@ -215,7 +215,7 @@ export function formatCareersAlert(data: {
     `<b>Email:</b> ${escapeTelegramHtml(data.email)}`,
     `<b>Role:</b> ${escapeTelegramHtml(roleLabel)}`,
     `<b>Page:</b> oceanparkasset.com${escapeTelegramHtml(data.path)}`,
-    `<b>Commitment:</b> ${escapeTelegramHtml(data.commitment || "Full-time")}`,
+    `<b>Commitment:</b> ${escapeTelegramHtml(data.commitment || "Contract")}`,
     `<b>Comp band:</b> ${escapeTelegramHtml(comp)}`,
     `<b>Location:</b> ${escapeTelegramHtml(data.location) || "—"}`,
     `<b>Experience:</b> ${escapeTelegramHtml(data.experience) || "—"}`,
