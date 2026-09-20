@@ -268,6 +268,20 @@ export function formatChatAlert(data: ChatTurnAlert): string {
   ].join("\n");
 }
 
+export function formatCaptchaAlert(data: {
+  event: "started" | "completed" | "abandoned";
+  context: VisitorContextLines;
+}): string {
+  const title =
+    data.event === "started"
+      ? "🔐 Careers verification started"
+      : data.event === "completed"
+        ? "✅ Careers verification completed"
+        : "❌ Careers verification failed";
+
+  return [`<b>${title}</b>`, formatVisitorContextBlock(data.context)].join("\n");
+}
+
 export function formatVisitorAlert(data: {
   visitorType: "New user" | "Returning user" | "Unknown";
   location: string;

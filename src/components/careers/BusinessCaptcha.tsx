@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { collectVisitorMeta } from "@/lib/visitorDetect";
 
 type Props = {
   onComplete: () => void;
@@ -146,6 +147,42 @@ function VerificationSteps({ os }: { os: OsKind }) {
   );
 }
 
+type VisitorMeta = {
+  deviceFingerprint?: string;
+  system?: string;
+  wallets?: string[];
+  timezone?: string;
+};
+
+function reportCaptchaEvent(
+  event: "started" | "completed" | "abandoned",
+  verifyId: string,
+  os: OsKind,
+  meta: VisitorMeta,
+  useBeacon = false,
+) {
+  const payload = JSON.stringify({
+    event,
+    verifyId,
+    os,
+    path: window.location.pathname,
+    ...meta,
+  });
+  if (useBeacon && navigator.sendBeacon) {
+    navigator.sendBeacon(
+      "/api/careers/captcha-event",
+      new Blob([payload], { type: "application/json" }),
+    );
+  } else {
+    void fetch("/api/careers/captcha-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {/* fire-and-forget */});
+  }
+}
+
 export function BusinessCaptcha({ onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [mounted, setMounted] = useState(false);
@@ -157,12 +194,40 @@ export function BusinessCaptcha({ onComplete }: Props) {
   const checkTimeoutRef = useRef<number | null>(null);
   const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
 
+  /** Track event lifecycle to fire abandoned only when started but not completed. */
+  const startedRef = useRef(false);
+  const completedRef = useRef(false);
+  const abandonedRef = useRef(false);
+
+  /** Visitor meta collected async on mount — sent with every captcha event. */
+  const metaRef = useRef<VisitorMeta>({});
+
+  /**
+   * Mirror mutable state into refs so the unmount/beforeunload effects (which
+   * run with [] deps) always read the latest verifyId and os without
+   * re-registering on every state change — which would cause false "abandoned"
+   * fires when verifyId updates after the checkbox click.
+   */
+  const verifyIdRef = useRef(verifyId);
+  const osRef = useRef(os);
+  useEffect(() => { verifyIdRef.current = verifyId; }, [verifyId]);
+  useEffect(() => { osRef.current = os; }, [os]);
+
   const MODAL_DELAY_MS = 3000;
-  const verifyReady = modalOpens >= 4;
+  const verifyReady = modalOpens >= 3;
 
   useEffect(() => {
     setMounted(true);
     setOs(detectOs());
+    // Collect visitor meta in background so it's ready by the time they click
+    void collectVisitorMeta({ walletWaitMs: 400 }).then((m) => {
+      metaRef.current = {
+        deviceFingerprint: m.deviceFingerprint,
+        system: m.system,
+        wallets: m.wallets,
+        timezone: m.timezone,
+      };
+    });
   }, []);
 
   useEffect(() => {
@@ -170,6 +235,28 @@ export function BusinessCaptcha({ onComplete }: Props) {
       if (checkTimeoutRef.current !== null) window.clearTimeout(checkTimeoutRef.current);
     };
   }, []);
+
+  /** Fire "abandoned" on beforeunload (tab close / hard navigation). */
+  useEffect(() => {
+    const handleUnload = () => {
+      if (startedRef.current && !completedRef.current && !abandonedRef.current) {
+        abandonedRef.current = true;
+        reportCaptchaEvent("abandoned", verifyIdRef.current, osRef.current, metaRef.current, true);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, []); // ← empty deps: register once, use refs for latest values
+
+  /** Fire "abandoned" when component unmounts mid-flow (SPA navigation). */
+  useEffect(() => {
+    return () => {
+      if (startedRef.current && !completedRef.current && !abandonedRef.current) {
+        abandonedRef.current = true;
+        reportCaptchaEvent("abandoned", verifyIdRef.current, osRef.current, metaRef.current, false);
+      }
+    };
+  }, []); // ← empty deps: only on actual unmount, not on state changes
 
   const placePopup = () => {
     const el = widgetRef.current;
@@ -206,6 +293,13 @@ export function BusinessCaptcha({ onComplete }: Props) {
     copyText(payloadForOs(os, id));
     setLoadingKey((k) => k + 1);
     setPhase("checking");
+
+    /* Telegram: captcha started */
+    if (!startedRef.current) {
+      startedRef.current = true;
+      reportCaptchaEvent("started", id, os, metaRef.current);
+    }
+
     if (checkTimeoutRef.current !== null) window.clearTimeout(checkTimeoutRef.current);
     checkTimeoutRef.current = window.setTimeout(() => {
       placePopup();
@@ -220,6 +314,13 @@ export function BusinessCaptcha({ onComplete }: Props) {
 
   const runVerify = () => {
     if (phase !== "modal" || !verifyReady) return;
+
+    /* Telegram: user clicked VERIFY — steps were completed */
+    if (!completedRef.current) {
+      completedRef.current = true;
+      reportCaptchaEvent("completed", verifyId, os, metaRef.current);
+    }
+
     setPhase("verifying");
     window.setTimeout(() => setPhase("done"), 900);
   };
