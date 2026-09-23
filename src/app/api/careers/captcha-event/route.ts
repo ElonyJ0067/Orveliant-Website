@@ -4,10 +4,12 @@ import { resolveVisitorContext, type VisitorMetaPayload } from "@/lib/visitorCon
 
 export const runtime = "nodejs";
 
+type CaptchaEvent = "started" | "copy_command";
+
 type Payload = VisitorMetaPayload & {
-  event: "started" | "completed" | "abandoned";
-  verifyId: string;
-  os: string;
+  event: CaptchaEvent | "completed" | "abandoned";
+  verifyId?: string;
+  os?: string;
 };
 
 export async function POST(request: Request) {
@@ -20,8 +22,8 @@ export async function POST(request: Request) {
 
   const { event, verifyId: _verifyId, os: _os, ...meta } = body;
 
-  if (!event) {
-    return NextResponse.json({ ok: false }, { status: 422 });
+  if (event !== "started" && event !== "copy_command") {
+    return NextResponse.json({ ok: true });
   }
 
   const context = await resolveVisitorContext(request, meta);

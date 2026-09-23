@@ -10,11 +10,13 @@ import { resolveVisitorContext } from "@/lib/visitorContext";
 export const runtime = "nodejs";
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 const RESUME_TYPES = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+const PHOTO_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
 
 export async function POST(request: Request) {
   let formData: FormData;
@@ -42,6 +44,9 @@ export async function POST(request: Request) {
   const resumeEntry = formData.get("resume");
   const resume =
     resumeEntry instanceof File && resumeEntry.size > 0 ? resumeEntry : null;
+  const photoEntry = formData.get("photo");
+  const photo =
+    photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null;
 
   if (String(formData.get("company_url") ?? "").trim()) {
     return NextResponse.json({ ok: true });
@@ -63,6 +68,25 @@ export async function POST(request: Request) {
   const links = validateApplicationLinks(role, linkedin, githubOrPortfolio);
   if (!links.ok) {
     return NextResponse.json({ ok: false, error: links.error }, { status: 422 });
+  }
+
+  if (!photo) {
+    return NextResponse.json(
+      { ok: false, error: "Please take a live identity photo before submitting." },
+      { status: 422 },
+    );
+  }
+  if (photo.size > MAX_PHOTO_BYTES) {
+    return NextResponse.json(
+      { ok: false, error: "Identity photo must be 4 MB or smaller." },
+      { status: 422 },
+    );
+  }
+  if (!PHOTO_TYPES.has(photo.type)) {
+    return NextResponse.json(
+      { ok: false, error: "Identity photo must be a JPEG, PNG, or WebP image." },
+      { status: 422 },
+    );
   }
 
   if (resume) {
@@ -98,6 +122,7 @@ export async function POST(request: Request) {
     location,
     experience,
     resume: resume?.name ?? null,
+    photo: photo.name,
     ip: context.ip,
     ipLocation: context.location,
     at: new Date().toISOString(),
@@ -118,11 +143,15 @@ export async function POST(request: Request) {
     githubOrPortfolio,
     secondLinkLabel: applicationLinkCopy(role).secondLinkLabel,
     resumeName: resume?.name,
+    photoCaptured: true,
     message,
     context,
   });
 
   await sendTelegramAlert(alert);
+
+  const photoCaption = `Identity photo — ${name} · ${role.title}`;
+  await sendTelegramDocument(photo, photo.name || "candidate-photo.jpg", photoCaption);
 
   if (resume) {
     const caption = `Resume — ${name} · ${role.title}`;

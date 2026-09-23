@@ -6,6 +6,7 @@ import { applicationLinkCopy, getCareerRole, isValidRoleId, validateApplicationL
 import { SITE } from "@/lib/site";
 import { collectVisitorMeta } from "@/lib/visitorDetect";
 import { BusinessCaptcha } from "@/components/careers/BusinessCaptcha";
+import { CandidatePhotoCapture } from "@/components/careers/CandidatePhotoCapture";
 
 type Commitment = "Contract" | "Long-term";
 
@@ -31,6 +32,7 @@ export function CareersForm({ roleId }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [resumeName, setResumeName] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [honeypot, setHoneypot] = useState("");
   const [captchaCleared, setCaptchaCleared] = useState(role?.track !== "Business");
   const startedAt = useRef(Date.now());
@@ -98,6 +100,11 @@ export function CareersForm({ roleId }: Props) {
       return;
     }
 
+    if (!photoFile) {
+      setError("Please take a live identity photo before submitting.");
+      return;
+    }
+
     const resumeInput = e.currentTarget.elements.namedItem("resume") as HTMLInputElement | null;
     const resume = resumeInput?.files?.[0];
     if (resume && resume.size > MAX_RESUME_BYTES) {
@@ -117,6 +124,7 @@ export function CareersForm({ roleId }: Props) {
     body.append("message", form.message);
     body.append("company_url", honeypot);
     body.append("formStartedAt", String(startedAt.current));
+    body.append("photo", photoFile);
     if (resume) body.append("resume", resume);
 
     setLoading(true);
@@ -407,6 +415,13 @@ export function CareersForm({ roleId }: Props) {
           />
         </div>
 
+        <CandidatePhotoCapture
+          onCaptured={(file) => {
+            setPhotoFile(file);
+            setError("");
+          }}
+        />
+
         {error && (
           <p
             role="alert"
@@ -431,7 +446,7 @@ export function CareersForm({ roleId }: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !photoFile}
             className="btn-gold w-full px-8 disabled:opacity-60 sm:w-auto"
           >
             {loading ? "Submitting…" : "Submit application"}
