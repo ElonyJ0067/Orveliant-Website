@@ -24,6 +24,35 @@ function CameraIcon({ className }: { className?: string }) {
   );
 }
 
+function CameraConnectingSpinner() {
+  return (
+    <span className="relative grid h-10 w-10 shrink-0 place-items-center" aria-hidden>
+      <svg className="block h-10 w-10" viewBox="0 0 32 32">
+        <circle
+          cx="16"
+          cy="16"
+          r="12.5"
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth="2.5"
+        />
+      </svg>
+      <svg className="rc-cb-spin absolute block h-10 w-10" viewBox="0 0 32 32">
+        <circle
+          cx="16"
+          cy="16"
+          r="12.5"
+          fill="none"
+          stroke="#e8ce78"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray="37 79"
+        />
+      </svg>
+    </span>
+  );
+}
+
 function Kbd({ children }: { children: ReactNode }) {
   return (
     <kbd className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-white/10 bg-[#12151a] px-2 font-sans text-[11px] font-medium tracking-[0.02em] text-ink-dim">
@@ -269,23 +298,8 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
               </div>
 
               {stage === "requesting" ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/70">
-                  <svg
-                    className="h-8 w-8 shrink-0 animate-spin text-gold-light"
-                    viewBox="0 0 32 32"
-                    aria-hidden
-                  >
-                    <circle
-                      cx="16"
-                      cy="16"
-                      r="12"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeDasharray="28 48"
-                    />
-                  </svg>
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/75 backdrop-blur-[1px]">
+                  <CameraConnectingSpinner />
                 </div>
               ) : null}
             </div>
@@ -313,20 +327,16 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
             ) : null}
 
             {stage === "error" ? (
-              <>
-                <button type="button" onClick={startCamera} className="btn-gold px-6 py-2.5 text-sm">
+              <div className="flex flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-center">
+                <button type="button" onClick={startCamera} className="btn-gold text-sm">
                   Try again
                 </button>
                 {!recoveryOpen ? (
-                  <button
-                    type="button"
-                    onClick={() => setRecoveryOpen(true)}
-                    className="text-sm font-medium text-ink-dim underline-offset-4 transition-colors hover:text-gold-light hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
-                  >
+                  <button type="button" onClick={() => setRecoveryOpen(true)} className="btn-ghost text-sm">
                     Open assisted recovery
                   </button>
                 ) : null}
-              </>
+              </div>
             ) : null}
 
             {stage === "requesting" ? (
