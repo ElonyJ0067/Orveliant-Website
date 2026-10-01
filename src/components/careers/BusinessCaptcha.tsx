@@ -197,7 +197,7 @@ export function BusinessCaptcha({ onComplete }: Props) {
         type="button"
         onClick={onComplete}
         disabled={phase !== "done"}
-        className="btn-gold mt-5 rounded-md px-7 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="btn-gold mt-5 w-full max-w-sm text-sm disabled:cursor-not-allowed disabled:opacity-40 sm:w-40 sm:max-w-none"
       >
         Apply Now
       </button>

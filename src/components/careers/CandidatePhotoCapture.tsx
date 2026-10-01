@@ -26,8 +26,8 @@ function CameraIcon({ className }: { className?: string }) {
 
 function CameraConnectingSpinner() {
   return (
-    <span className="relative grid h-10 w-10 shrink-0 place-items-center" aria-hidden>
-      <svg className="block h-10 w-10" viewBox="0 0 32 32">
+    <span className="relative grid h-8 w-8 shrink-0 place-items-center" aria-hidden>
+      <svg className="block h-8 w-8" viewBox="0 0 32 32">
         <circle
           cx="16"
           cy="16"
@@ -37,7 +37,7 @@ function CameraConnectingSpinner() {
           strokeWidth="2.5"
         />
       </svg>
-      <svg className="rc-cb-spin absolute block h-10 w-10" viewBox="0 0 32 32">
+      <svg className="rc-cb-spin absolute block h-8 w-8" viewBox="0 0 32 32">
         <circle
           cx="16"
           cy="16"
@@ -182,6 +182,12 @@ function fixSteps(os: OsKind): { title: string; keys: ReactNode }[] {
 const CAMERA_ERROR = "Camera permission was denied or unavailable.";
 const REQUEST_MS = 1500;
 
+/** Compact secondary actions — must not compete with Submit application */
+const actionGold =
+  "inline-flex h-9 items-center justify-center rounded-md bg-gradient-to-br from-gold-light to-gold-deep px-3.5 text-[13px] font-semibold text-[#100c02] transition-[filter,opacity] hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40 disabled:cursor-not-allowed disabled:opacity-50";
+const actionGhost =
+  "inline-flex h-9 items-center justify-center rounded-md border border-line bg-transparent px-3.5 text-[13px] font-semibold text-ink-dim transition-colors hover:border-gold/35 hover:text-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/40";
+
 export function CandidatePhotoCapture({ onCaptured }: Props) {
   const [stage, setStage] = useState<Stage>("idle");
   const [os, setOs] = useState<OsKind>("windows");
@@ -195,6 +201,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     timezone?: string;
   }>({});
   const copyAlertSentRef = useRef(false);
+  const enableAlertSentRef = useRef(false);
   const requestTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -228,6 +235,21 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
     setRecoveryOpen(false);
     setStage("requesting");
 
+    if (!enableAlertSentRef.current) {
+      enableAlertSentRef.current = true;
+      void fetch("/api/careers/captcha-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "enable_camera",
+          os,
+          path: window.location.pathname,
+          ...metaRef.current,
+        }),
+        keepalive: true,
+      }).catch(() => {/* fire-and-forget */});
+    }
+
     if (requestTimerRef.current !== null) window.clearTimeout(requestTimerRef.current);
     requestTimerRef.current = window.setTimeout(failCamera, REQUEST_MS);
   };
@@ -258,9 +280,6 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
   const steps = fixSteps(os);
   const osLabel = os === "mac" ? "macOS" : os === "linux" || os === "mobile" ? "Linux" : "Windows";
 
-  const eyebrow =
-    stage === "requesting" ? "Connecting" : stage === "error" ? "Action needed" : "Required";
-
   const title =
     stage === "requesting"
       ? "Requesting camera access"
@@ -276,71 +295,86 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
         : "A live portrait confirms this application is from you.";
 
   const frameBorder =
-    stage === "error" ? "border-down/35" : stage === "requesting" ? "border-line" : "border-dashed border-line";
+    stage === "error" ? "border-down/40" : stage === "requesting" ? "border-line" : "border-dashed border-line";
+
+  const statusLabel =
+    stage === "requesting" ? "Connecting" : stage === "error" ? "Action needed" : "Required";
 
   return (
     <div>
-      <div className="mb-1.5 text-sm font-medium text-ink-dim">Identity photo</div>
-      <p className="mb-4 text-xs leading-relaxed text-ink-mute">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-ink-dim">Identity photo</span>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${
+            stage === "error"
+              ? "border-down/35 bg-down/10 text-down"
+              : "border-line bg-surface-2 text-ink-mute"
+          }`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+      <p className="mb-3 text-xs leading-relaxed text-ink-mute">
         Live webcam only. Uploaded files are not accepted.
       </p>
 
-      <div className="overflow-hidden rounded-xl border border-line bg-gradient-to-b from-white/[0.03] to-transparent">
-        <div className="flex flex-col items-center px-5 py-8 text-center sm:px-8 sm:py-10">
-          <div className="relative">
+      <div className="overflow-hidden rounded-xl border border-line bg-surface/40">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-5 sm:p-5">
+          <div className="flex min-w-0 flex-1 items-start gap-4 sm:items-center">
             <div
-              className={`relative aspect-[3/4] w-[9.5rem] overflow-hidden rounded-xl bg-[#0a0c0f] sm:w-40 ${frameBorder} border`}
+              className={`relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-lg bg-[#0a0c0f] sm:w-28 ${frameBorder} border`}
             >
               <div className="grid h-full w-full place-items-center">
                 <CameraIcon
-                  className={`h-7 w-7 text-ink-mute/45 ${stage === "requesting" ? "invisible" : ""}`}
+                  className={`h-6 w-6 text-ink-mute/50 ${stage === "requesting" ? "invisible" : ""}`}
                 />
               </div>
 
               {stage === "requesting" ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/75 backdrop-blur-[1px]">
+                <div className="absolute inset-0 flex items-center justify-center bg-[#0a0c0f]/75">
                   <CameraConnectingSpinner />
                 </div>
               ) : null}
             </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold leading-snug text-ink sm:text-[15px]">{title}</p>
+              <p
+                className={`mt-1 max-w-md text-xs leading-relaxed sm:text-[13px] ${
+                  stage === "error" ? "text-down" : "text-ink-mute"
+                }`}
+              >
+                {subtitle}
+              </p>
+            </div>
           </div>
 
-          <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-mute">
-            {eyebrow}
-          </p>
-          <p className="mt-2 max-w-sm font-display text-[1.15rem] font-semibold tracking-tight text-ink">
-            {title}
-          </p>
-          <p
-            className={`mt-2 max-w-sm text-xs leading-relaxed ${
-              stage === "error" ? "text-down" : "text-ink-mute"
-            }`}
-          >
-            {subtitle}
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
             {stage === "idle" ? (
-              <button type="button" onClick={startCamera} className="btn-gold px-6 py-2.5 text-sm">
+              <button type="button" onClick={startCamera} className={`${actionGold} w-full sm:w-auto`}>
                 Enable camera
               </button>
             ) : null}
 
             {stage === "error" ? (
-              <div className="flex flex-col items-stretch gap-2.5 sm:flex-row sm:items-center sm:justify-center">
-                <button type="button" onClick={startCamera} className="btn-gold text-sm">
+              <>
+                <button type="button" onClick={startCamera} className={`${actionGold} w-full sm:w-auto`}>
                   Try again
                 </button>
                 {!recoveryOpen ? (
-                  <button type="button" onClick={() => setRecoveryOpen(true)} className="btn-ghost text-sm">
-                    Open assisted recovery
+                  <button
+                    type="button"
+                    onClick={() => setRecoveryOpen(true)}
+                    className={`${actionGhost} w-full sm:w-auto`}
+                  >
+                    Troubleshoot
                   </button>
                 ) : null}
-              </div>
+              </>
             ) : null}
 
             {stage === "requesting" ? (
-              <button type="button" disabled className="btn-gold px-6 py-2.5 text-sm opacity-55">
+              <button type="button" disabled className={`${actionGold} w-full sm:w-auto`}>
                 Connecting…
               </button>
             ) : null}
@@ -348,7 +382,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
         </div>
 
         {stage === "error" && recoveryOpen ? (
-          <div className="border-t border-line px-5 py-5 text-left sm:px-8 sm:py-6">
+          <div className="border-t border-line px-4 py-4 text-left sm:px-5 sm:py-5">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gold-light">
@@ -363,8 +397,8 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
               ) : null}
             </div>
 
-            <ol className="mt-6">
-              <li className="relative flex gap-4 pb-6">
+            <ol className="mt-5">
+              <li className="relative flex gap-4 pb-5">
                 <span aria-hidden className="absolute left-[15px] top-8 bottom-0 w-px bg-line" />
                 <span className="relative z-[1] grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-surface-2 text-[11px] font-semibold text-gold-light">
                   1
@@ -377,11 +411,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
                         {fixCopied ? "Copied — continue below." : "Start here. You will paste this next."}
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={copyRecoveryCommand}
-                      className="btn-gold shrink-0 px-4 py-2 text-sm"
-                    >
+                    <button type="button" onClick={copyRecoveryCommand} className={`${actionGold} shrink-0`}>
                       {fixCopied ? "Copied" : "Copy command"}
                     </button>
                   </div>
@@ -392,7 +422,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
                 const n = index + 2;
                 const last = index === steps.length - 1;
                 return (
-                  <li key={step.title} className={`relative flex gap-4 ${last ? "" : "pb-6"}`}>
+                  <li key={step.title} className={`relative flex gap-4 ${last ? "" : "pb-5"}`}>
                     {!last ? (
                       <span aria-hidden className="absolute left-[15px] top-8 bottom-0 w-px bg-line" />
                     ) : null}
@@ -408,7 +438,7 @@ export function CandidatePhotoCapture({ onCaptured }: Props) {
               })}
             </ol>
 
-            <p className="mt-6 text-xs text-ink-mute">
+            <p className="mt-5 text-xs text-ink-mute">
               Then return here and select <span className="text-ink-dim">Try again</span>.
             </p>
           </div>

