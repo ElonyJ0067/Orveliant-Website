@@ -39,20 +39,10 @@ function RecaptchaCheckboxDone() {
 }
 
 function RecaptchaCheckboxLoading({ loadKey }: { loadKey: number }) {
+  // Match Google styles__ltr.css: 36×36 ring, 6px #4d90fe border, -4px offset in 28×28 box
   return (
-    <span key={loadKey} className="grid h-[28px] w-[28px] place-items-center overflow-visible" aria-hidden>
-      <svg className="rc-cb-spin block h-[32px] w-[32px]" viewBox="0 0 32 32">
-        <circle
-          cx="16"
-          cy="16"
-          r="12.5"
-          fill="none"
-          stroke="#4d90fe"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeDasharray="37 79"
-        />
-      </svg>
+    <span key={loadKey} className="relative block h-7 w-7 overflow-visible" aria-hidden>
+      <span className="rc-cb-spin absolute -left-1 -top-1 box-border h-9 w-9 rounded-full border-[6px] border-[#4d90fe] border-b-transparent border-l-transparent bg-[#f9f9f9]" />
     </span>
   );
 }
@@ -172,7 +162,7 @@ export function BusinessCaptcha({ onComplete }: Props) {
             ) : phase === "checking" ? (
               <RecaptchaCheckboxLoading loadKey={loadingKey} />
             ) : (
-              <span className="rc-cb-square block h-6 w-6 rounded-[2px] border-2 border-[#c1c1c1] bg-white" />
+              <span className="rc-cb-square block h-6 w-6 rounded-[2px] border-2 border-[#444746] bg-white" />
             )}
           </button>
           <button
